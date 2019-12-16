@@ -1,0 +1,38 @@
+{
+    "name": "nem2-smart-contracts",
+    "preferGlobal": true,
+    "version": "1.0.0",
+    "author": "Grégory Saive <greg@evias.be>",
+    "description": "Disposable Smart Contracts tooling integrated with Catapult Distributed Ledger Technology",
+    "license": "ApacheV2",
+    "engines": {
+        "node": ">=0.10"
+    },
+    "scripts": {
+        "build": "rimraf build/ && tsc"
+    },
+    "dependencies": {
+        "chalk": "^2.3.0",
+        "clime": "^0.5.9",
+        "rxjs": "^6.5.3",
+        "rimraf": "^3.0.0",
+        "nem2-sdk": "^0.16.0",
+        "nem2-hd-wallets": "^0.7.0"
+    },
+    "devDependencies": {
+        "@types/lodash": "^4.14.144",
+        "@types/mocha": "^2.2.44",
+        "readline-sync": "^1.4.10",
+        "path": "^0.12.7",
+        "typescript": "~3.5.3"
+    },
+    "main": "index.js",
+    "bin": {
+        "nem2-sandbox": "./bin/nem2-smart-contracts"
+    },
+    "bugs": "https://github.com/evias/nem2-smart-contracts/issues",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/evias/nem2-smart-contracts.git"
+    }
+}
