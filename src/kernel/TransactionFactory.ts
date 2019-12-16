@@ -40,6 +40,7 @@ import {
     Mosaic,
     PlainMessage,
     Address,
+    HashLockTransaction,
 } from 'nem2-sdk';
 
 import {ContractConstants} from './Contract'
@@ -251,10 +252,10 @@ export class TransactionFactory {
   /**
    * Get a TransferTransaction object
    *
-   * @param publicAccount 
-   * @param mosaicId 
-   * @param addresses 
-   * @param amount 
+   * @param {Address}               recipient
+   * @param {MosaicId|NamespaceId}  mosaicId 
+   * @param {number}                amount 
+   * @return {TransferTransaction}
    */
   public getTransferTransaction(
     recipient: Address,
@@ -268,7 +269,32 @@ export class TransactionFactory {
       [new Mosaic(mosaicId, UInt64.fromUint(amount))],
       PlainMessage.create('nem2-smart-contracts transfer'),
       this.networkType,
-      UInt64.fromUint(ContractConstants.DEFAULT_TRANSACTION_FEE), // 1 XEM fee
+      UInt64.fromUint(ContractConstants.DEFAULT_TRANSACTION_FEE),
+    )
+  }
+
+  /**
+   * Get a HashLockTransaction object
+   *
+   * @param {Mosaic}            mosaic 
+   * @param {number}            duration 
+   * @param {SignedTransaction} signedAggregate 
+   * @return {HashLockTransaction}
+   */
+  public getHashLockTransaction(
+    mosaic: Mosaic,
+    duration: number,
+    signedAggregate: SignedTransaction,
+  ): HashLockTransaction
+  {
+    // create lock funds of 10 "cat.currency" for the aggregate transaction
+    return HashLockTransaction.create(
+      Deadline.create(),
+      mosaic,
+      UInt64.fromUint(duration),
+      signedAggregate,
+      this.networkType,
+      UInt64.fromUint(ContractConstants.DEFAULT_TRANSACTION_FEE),
     )
   }
 }

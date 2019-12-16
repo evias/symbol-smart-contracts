@@ -23,6 +23,7 @@ import {
     AggregateTransaction,
     NamespaceId,
     PublicAccount,
+    Mosaic,
 } from 'nem2-sdk';
 
 import {OptionsResolver} from '../kernel/OptionsResolver';
@@ -44,12 +45,29 @@ export class AssetEscrowInputs extends ContractInputs {
     description: 'Right hand asset for the escrow',
   })
   asset2: string;
+  @option({
+    flag: 'l',
+    description: 'Asset that is locked (spam protection)',
+  })
+  lock: string;
 }
 
 @command({
   description: 'Disposable Smart Contract for the Escrow of Assets',
 })
 export default class extends Contract {
+
+  /**
+   * The asset used for the spam protection lock
+   * @var {string} 
+   */
+  protected lockAsset: string = 'nem.xem'
+
+  /**
+   * The absolute lock amount
+   * @var {number} 
+   */
+  protected lockAmount: number = 10 * 1000000
 
   constructor() {
       super();
@@ -87,7 +105,7 @@ export default class extends Contract {
 
       const parts = inputs['asset1'].split(' ')
       if (parts.length != 2) {
-        throw new ExpectedError('Expected an amount and mosaic, Ex.: 10 nem.xem')
+        throw new ExpectedError('Expected an amount and mosaic in --asset1, Ex.: 10 nem.xem')
       }
 
       inputs['l_amount'] = parseInt(parts[0])
@@ -109,12 +127,23 @@ export default class extends Contract {
 
       const parts = inputs['asset2'].split(' ')
       if (parts.length != 2) {
-        throw new ExpectedError('Expected an amount and mosaic, Ex.: 10 nem.xem')
+        throw new ExpectedError('Expected an amount and mosaic in --asset2, Ex.: 10 nem.xem')
       }
 
       inputs['r_amount'] = parseInt(parts[0])
       inputs['r_asset']  = parts[1]
     } catch (err) { this.error('Please, enter a valid mosaic entry in asset2.'); }
+
+    // lock asset can be overwritten with --lock or -l
+    if (inputs.hasOwnProperty('lock') && inputs['lock'] && inputs['lock'].length) {
+      const parts = inputs['lock'].split(' ')
+      if (parts.length != 2) {
+        throw new ExpectedError('Expected an amount and mosaic in --lock, Ex.: 10 nem.xem')
+      }
+
+      this.lockAmount = parseInt(parts[0]) * 1000000 // divisibility = 6
+      this.lockAsset  = parts[1]
+    }
   
     // --------------------------------
     // STEP 2: Prepare Contract Actions
@@ -174,7 +203,17 @@ export default class extends Contract {
     // sign the aggregate transaction with `account`
     const signedTransaction = this.getSigner(account, aggregateTx).sign()
 
+    // create hash lock (spam protected partial transactions pool)
+    const lockFundsTransaction = this.factory.getHashLockTransaction(
+      new Mosaic(new NamespaceId(this.lockAsset), UInt64.fromUint(this.lockAmount)),
+      1000, // 1000 blocks duration
+      signedTransaction,
+    )
+
+    // sign hash lock transaction
+    const signedLockFundsTx = this.getSigner(account, lockFundsTransaction).sign()
+
     // announce the aggregate transaction
-    return await this.broadcaster.announcePartial(account.publicAccount, signedTransaction)
+    return await this.broadcaster.announcePartial(account.publicAccount, signedLockFundsTx, signedTransaction)
   }
 }

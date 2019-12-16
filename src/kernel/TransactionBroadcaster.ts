@@ -112,7 +112,8 @@ export class TransactionBroadcaster {
    */
   public async announcePartial(
     account: PublicAccount,
-    signedTransaction: SignedTransaction
+    signedHashLock: SignedTransaction,
+    signedPartial: SignedTransaction
   ): Promise<Object> 
   {
     // open confirmation listener
@@ -122,13 +123,14 @@ export class TransactionBroadcaster {
 
     if (this.enableDebug === true) {
       console.log('')
-      console.log(chalk.yellow('Smart Contract Execution Hash: ', signedTransaction.hash))
-      console.log(chalk.yellow('Signed Smart Contract: \n\n\t', signedTransaction.payload))
+      console.log(chalk.yellow('Smart Contract Execution Hash: ', signedPartial.hash, '\n'))
+      console.log(chalk.yellow('Signed Smart Contract: \n\n\t', signedPartial.payload, '\n'))
+      console.log(chalk.yellow('Signed Smart Contract SPAM Protection: \n\n\t', signedHashLock.payload))
       console.log('')
     }
 
-    // announce transaction
-    try { await transactionHttp.announceAggregateBonded(signedTransaction) }
+    // first announce the hash lock and wait for confirmation
+    try { await transactionHttp.announce(signedHashLock) }
     catch (e) { this.contract.error('An error occured: ' + e) }
 
     // listen to errors
@@ -136,27 +138,35 @@ export class TransactionBroadcaster {
       this.informError(err)
       process.exit(1)
     })
+     
+    // wait for HASH LOCK transaction confirmation
+    return confirmedListener.confirmed(account.address, signedHashLock.hash).subscribe(
+      async (transaction) => {
+        // announce aggregate bonded transaction
+        try { await transactionHttp.announceAggregateBonded(signedPartial) }
+        catch (e) { this.contract.error('An error occured: ' + e) }
 
-    // transaction added to partial pool
-    confirmedListener.aggregateBondedAdded(account.address, signedTransaction.hash).subscribe(
-      (transaction) => {
-        this.informPartialSuccess()
-      })
+        // transaction added to partial pool
+        confirmedListener.aggregateBondedAdded(account.address, signedPartial.hash).subscribe(
+          (transaction) => {
+            this.informPartialSuccess()
+          })
 
-    // transaction co-signed by TAKER
-    confirmedListener.cosignatureAdded(account.address).subscribe(
-      (cosigSignedTransaction) => {
-        this.informCosigSuccess(cosigSignedTransaction)
-      })
+        // transaction co-signed by TAKER
+        confirmedListener.cosignatureAdded(account.address).subscribe(
+          (cosigSignedTransaction) => {
+            this.informCosigSuccess(cosigSignedTransaction)
+          })
 
-    // wait for transaction confirmation
-    return confirmedListener.confirmed(account.address, signedTransaction.hash).subscribe(
-      (transaction) => {
-        this.informSuccess(
-          account,
-          signedTransaction
-        )
-        process.exit(0)
+        // wait for transaction confirmation
+        return confirmedListener.confirmed(account.address, signedPartial.hash).subscribe(
+          (transaction) => {
+            this.informSuccess(
+              account,
+              signedPartial
+            )
+            process.exit(0)
+          })
       })
   }
 
