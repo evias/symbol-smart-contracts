@@ -27,6 +27,7 @@ import {
     UInt64,
     NetworkType,
     TransactionStatusError,
+    CosignatureSignedTransaction,
 } from 'nem2-sdk';
 import { Contract } from './Contract';
 
@@ -60,49 +61,10 @@ export class TransactionBroadcaster {
   }
 
   /**
-   * Display success message
+   * Sign and announce transaction
    *
    * @param {PublicAccount}     account 
-   * @param {SignedTransaction} signedTransaction 
-   */
-  protected informSuccess(
-    account: PublicAccount,
-    signedTransaction: SignedTransaction
-  ): void {
-    // prepare display
-    const explorerUrl  = this.explorerUrl
-    const explorerTx   = explorerUrl + '/transaction/' + signedTransaction.hash
-    const explorerAcct = explorerUrl + '/account/' + account.address.plain()
-
-    console.log('')
-    console.log(chalk.green('Smart contract \'' + this.contract.getName() + '\' executed successfully'))
-    console.log(chalk.green('View Transaction:    ' + explorerTx))
-    console.log(chalk.green('View Issuer Account: ' + explorerAcct))
-    console.log('')
-  }
-
-  /**
-   * Display error message
-   *
-   * @param {PublicAccount}     account 
-   * @param {SignedTransaction} signedTransaction 
-   */
-  protected informError(
-    error: TransactionStatusError
-  ): void {
-    const linkStatus = this.endpointUrl + '/transaction/' + error.hash  + '/status'
-    console.log('')
-    console.log(chalk.red('Smart contract \'' + this.contract.getName() + '\' failed executing'))
-    console.log(chalk.red('Failure Reason (Code):  ' + error.status))
-    console.log(chalk.red('View Status Details:    ' + linkStatus))
-    console.log('')
-  }
-
-  /**
-   * Announce said transactions list
-   *
-   * @param {PublicAccount}       account 
-   * @param {SignedTransaction[]} transactions
+   * @param {SignedTransaction} transaction
    */
   public async announce(
     account: PublicAccount,
@@ -140,5 +102,168 @@ export class TransactionBroadcaster {
         )
         process.exit(0)
       })
+  }
+
+  /**
+   * Sign and announce aggregate bonded transaction
+   *
+   * @param {PublicAccount}     account 
+   * @param {SignedTransaction} transaction
+   */
+  public async announcePartial(
+    account: PublicAccount,
+    signedTransaction: SignedTransaction
+  ): Promise<Object> 
+  {
+    // open confirmation listener
+    const transactionHttp = new TransactionHttp(this.endpointUrl)
+    const confirmedListener = new Listener(this.endpointUrl)
+    await confirmedListener.open()
+
+    if (this.enableDebug === true) {
+      console.log('')
+      console.log(chalk.yellow('Smart Contract Execution Hash: ', signedTransaction.hash))
+      console.log(chalk.yellow('Signed Smart Contract: \n\n\t', signedTransaction.payload))
+      console.log('')
+    }
+
+    // announce transaction
+    try { await transactionHttp.announceAggregateBonded(signedTransaction) }
+    catch (e) { this.contract.error('An error occured: ' + e) }
+
+    // listen to errors
+    confirmedListener.status(account.address).subscribe((err) => {
+      this.informError(err)
+      process.exit(1)
+    })
+
+    // transaction added to partial pool
+    confirmedListener.aggregateBondedAdded(account.address, signedTransaction.hash).subscribe(
+      (transaction) => {
+        this.informPartialSuccess()
+      })
+
+    // transaction co-signed by TAKER
+    confirmedListener.cosignatureAdded(account.address).subscribe(
+      (cosigSignedTransaction) => {
+        this.informCosigSuccess(cosigSignedTransaction)
+      })
+
+    // wait for transaction confirmation
+    return confirmedListener.confirmed(account.address, signedTransaction.hash).subscribe(
+      (transaction) => {
+        this.informSuccess(
+          account,
+          signedTransaction
+        )
+        process.exit(0)
+      })
+  }
+
+  /**
+   * Sign and announce transaction
+   *
+   * @param {PublicAccount}                 account 
+   * @param {CosignatureSignedTransaction}  transaction
+   */
+  public async announceCosignature(
+    account: PublicAccount,
+    signedTransaction: CosignatureSignedTransaction
+  ): Promise<Object> 
+  {
+    // open confirmation listener
+    const transactionHttp = new TransactionHttp(this.endpointUrl)
+    const confirmedListener = new Listener(this.endpointUrl)
+    await confirmedListener.open()
+
+    if (this.enableDebug === true) {
+      console.log('')
+      console.log(chalk.yellow('Creating Smart Contract Co-Signature with account public key: ', signedTransaction.signerPublicKey))
+      console.log('')
+    }
+
+    // announce transaction
+    try { await transactionHttp.announceAggregateBondedCosignature(signedTransaction) }
+    catch (e) { this.contract.error('An error occured: ' + e) }
+
+    // listen to errors
+    confirmedListener.status(account.address).subscribe((err) => {
+      this.informError(err)
+      process.exit(1)
+    })
+
+    // transaction co-signed
+    return confirmedListener.cosignatureAdded(account.address).subscribe(
+      (cosigSignedTransaction) => {
+        this.informCosigSuccess(cosigSignedTransaction)
+        this.informPartialSuccess()
+        process.exit(0)
+      })
+  }
+
+  /**
+   * Display success message
+   *
+   * @param {PublicAccount}     account 
+   * @param {SignedTransaction} signedTransaction 
+   */
+  protected informSuccess(
+    account: PublicAccount,
+    signedTransaction: SignedTransaction
+  ): void {
+    // prepare display
+    const explorerUrl  = this.explorerUrl
+    const explorerTx   = explorerUrl + '/transaction/' + signedTransaction.hash
+    const explorerAcct = explorerUrl + '/account/' + account.address.plain()
+
+    console.log('')
+    console.log(chalk.green('Smart contract \'' + this.contract.getName() + '\' execution completed'))
+    console.log(chalk.green('View Transaction:    ' + explorerTx))
+    console.log(chalk.green('View Issuer Account: ' + explorerAcct))
+    console.log('')
+  }
+
+  /**
+   * Display partial transaction success message
+   *
+   * @param {PublicAccount}     account 
+   * @param {SignedTransaction} signedTransaction 
+   */
+  protected informPartialSuccess(): void {
+    console.log('')
+    console.log(chalk.green('Smart contract \'' + this.contract.getName() + '\' executed successfully'))
+    console.log(chalk.green('Now waiting for co-signatures from other involved parties.'))
+    console.log('')
+  }
+
+  /**
+   * Display partial transaction success message
+   *
+   * @param {PublicAccount}     account 
+   * @param {SignedTransaction} signedTransaction 
+   */
+  protected informCosigSuccess(
+    signedTransaction: CosignatureSignedTransaction
+  ): void {
+    console.log('')
+    console.log(chalk.green('New co-signature added for ' + signedTransaction.parentHash + '.'))
+    console.log('')
+  }
+
+  /**
+   * Display error message
+   *
+   * @param {PublicAccount}     account 
+   * @param {SignedTransaction} signedTransaction 
+   */
+  protected informError(
+    error: TransactionStatusError
+  ): void {
+    const linkStatus = this.endpointUrl + '/transaction/' + error.hash  + '/status'
+    console.log('')
+    console.log(chalk.red('Smart contract \'' + this.contract.getName() + '\' failed executing'))
+    console.log(chalk.red('Failure Reason (Code):  ' + error.status))
+    console.log(chalk.red('View Status Details:    ' + linkStatus))
+    console.log('')
   }
 }

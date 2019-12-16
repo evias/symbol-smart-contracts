@@ -14,13 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {command, metadata, option} from 'clime';
+import {command, metadata, option, ExpectedError} from 'clime';
 import {
     UInt64,
     Account,
     Deadline,
     Transaction,
     AggregateTransaction,
+    NamespaceId,
+    PublicAccount,
 } from 'nem2-sdk';
 
 import {OptionsResolver} from '../kernel/OptionsResolver';
@@ -82,13 +84,21 @@ export default class extends Contract {
         'asset1',
         () => { return ''; },
         '\nEnter an amount and mosaic for the first party (Ex.: 10 nem.xem): ');
-    } catch (err) { this.error('Please, enter a valid mosaic entry.'); }
+
+      const parts = inputs['asset1'].split(' ')
+      if (parts.length != 2) {
+        throw new ExpectedError('Expected an amount and mosaic, Ex.: 10 nem.xem')
+      }
+
+      inputs['l_amount'] = parseInt(parts[0])
+      inputs['l_asset']  = parts[1]
+    } catch (err) { this.error('Please, enter a valid mosaic entry in asset1.'); }
 
     try {
       inputs['taker'] = OptionsResolver(inputs,
         'taker',
         () => { return ''; },
-        'Enter an account address for the taker account: ');
+        'Enter a taker account public key (second party): ');
     } catch (err) { this.error('Please, enter a valid account address.'); }
 
     try {
@@ -96,38 +106,35 @@ export default class extends Contract {
         'asset2',
         () => { return ''; },
         'Enter an amount and mosaic for the second party (Ex.: 10 nem.xem): ');
-    } catch (err) { this.error('Please, enter a valid mosaic entry.'); }
+
+      const parts = inputs['asset2'].split(' ')
+      if (parts.length != 2) {
+        throw new ExpectedError('Expected an amount and mosaic, Ex.: 10 nem.xem')
+      }
+
+      inputs['r_amount'] = parseInt(parts[0])
+      inputs['r_asset']  = parts[1]
+    } catch (err) { this.error('Please, enter a valid mosaic entry in asset2.'); }
   
     // --------------------------------
     // STEP 2: Prepare Contract Actions
     // --------------------------------
 
     const account = argv['account']
+    const taker   = PublicAccount.createFromPublicKey(inputs['taker'], this.networkType)
 
-    // Contract Action #1: register namespace(s)
+    // Contract Action #1: create left hand transfer
     const leftHandTransfer = this.factory.getTransferTransaction(
-
+      taker.address,
+      new NamespaceId(inputs['l_asset']),
+      inputs['l_amount']
     );
 
-    // Contract Action #2: create MosaicDefinition transaction
-    const mosaicDefinitionTx = this.factory.getMosaicDefinitionTransaction(
-      account.publicAccount,
-      inputs['divisibility'],
-      inputs['flags'].toLowerCase().indexOf('supplymutable') !== -1,
-      inputs['flags'].toLowerCase().indexOf('transferable') !== -1,
-      inputs['flags'].toLowerCase().indexOf('restrictable') !== -1,
-    );
-
-    // Contract Action #3: create MosaicSupplyChange transaction
-    const mosaicSupplyTx = this.factory.getMosaicSupplyChangeTransaction(
-      mosaicDefinitionTx.mosaicId,
-      UInt64.fromUint(parseInt(inputs['supply']))
-    );
-
-    // Contract Action #4: create MosaicAlias transaction to link lower level namespace to mosaic
-    const aliasTx = this.factory.getMosaicAliasTransaction(
-        inputs['name'],
-        mosaicDefinitionTx.mosaicId
+    // Contract Action #2: create right hand transfer
+    const rightHandTransfer = this.factory.getTransferTransaction(
+      account.address,
+      new NamespaceId(inputs['r_asset']),
+      inputs['r_amount']
     );
 
     // --------------------------------
@@ -135,14 +142,10 @@ export default class extends Contract {
     // --------------------------------
 
     // Contract Execution: merge transactions and execute contract
-    const allTxes = [].concat(
-      namespaceTxes,
-      [
-        mosaicDefinitionTx.toAggregate(account.publicAccount),
-        mosaicSupplyTx.toAggregate(account.publicAccount),
-        aliasTx.toAggregate(account.publicAccount)
-      ]
-    );
+    const allTxes = [
+      leftHandTransfer.toAggregate(account.publicAccount),
+      rightHandTransfer.toAggregate(taker),
+    ];
 
     // wrap all transactions in an aggregate, sign and broadcast
     return await this.executeContract(account, allTxes)
@@ -160,7 +163,7 @@ export default class extends Contract {
     transactions: Transaction[]
   ): Promise<any> {
     // wrap contract transactions
-    const aggregateTx = AggregateTransaction.createComplete(
+    const aggregateTx = AggregateTransaction.createBonded(
       Deadline.create(),
       transactions,
       this.networkType,
@@ -172,6 +175,6 @@ export default class extends Contract {
     const signedTransaction = this.getSigner(account, aggregateTx).sign()
 
     // announce the aggregate transaction
-    return await this.broadcaster.announce(account.publicAccount, signedTransaction)
+    return await this.broadcaster.announcePartial(account.publicAccount, signedTransaction)
   }
 }

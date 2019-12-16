@@ -21,6 +21,8 @@ import {
     SignedTransaction,
     AggregateTransaction,
     TransactionType,
+    CosignatureSignedTransaction,
+    CosignatureTransaction,
 } from 'nem2-sdk';
 
 export class TransactionSigner {
@@ -79,5 +81,19 @@ export class TransactionSigner {
       cosignatories,
       this.generationHash
     )
+  }
+
+  /**
+   * Sign an aggregate transaction with cosignatory `account`
+   *
+   * @param {Account[]} cosignatories
+   * @return {SignedTransaction}
+   */
+  public cosignAggregate(
+    account: Account
+  ): CosignatureSignedTransaction
+  {
+    const cosignatureTransaction = CosignatureTransaction.create(this.transaction as AggregateTransaction);
+    return account.signCosignatureTransaction(cosignatureTransaction);
   }
 }
