@@ -34,11 +34,6 @@ import {Contract, ContractConstants, ContractInputs} from '../kernel/Contract';
 
 export class PartialCosignatureInputs extends ContractInputs {
   @option({
-    flag: 'p',
-    description: 'Co-signatory account private key',
-  })
-  privateKey: string;
-  @option({
     flag: 'h',
     description: 'Partial transaction hash (parent hash / aggregate transaction hash)',
   })
@@ -77,23 +72,6 @@ export default class extends Contract {
     // -------------------
     // STEP 1: Read Inputs
     // -------------------
-    console.log('');
-    const usePrivateKey = readlineSync.keyInYN(
-      'Do you want to enter a private key? ');
-
-    if (usePrivateKey === true) {
-      inputs['account'] = this.createAccountFromPrivateKey(OptionsResolver(inputs,
-        'account',
-        () => { return ''; },
-        'Enter an account private key: '))
-    }
-    else { // use mnemonic pass phrase
-      inputs['account'] = this.createAccountFromMnemonic(OptionsResolver(inputs,
-        'mnemonic',
-        () => { return ''; },
-        'Enter a 24-words mnemonic passphrase: '))
-    }
-
     try {
       inputs['hash'] = OptionsResolver(inputs,
         'hash',
@@ -106,7 +84,7 @@ export default class extends Contract {
     // --------------------------------
 
     const accountHttp = new AccountHttp(this.endpointUrl)
-    const cosignatory = inputs['account']
+    const cosignatory = argv['account']
 
     // --------------------------------
     // STEP 3: Execute Contract Actions
@@ -118,7 +96,8 @@ export default class extends Contract {
     if (! unsignedTxes.length) {
       console.log('')
       console.log(chalk.yellow("No transactions found to co-sign."));
-      return false // contract not executed
+      console.log('')
+      return ; // contract not executed
     }
 
     return await this.executeContract(cosignatory, [])
