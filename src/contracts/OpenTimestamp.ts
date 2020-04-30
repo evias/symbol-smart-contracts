@@ -15,30 +15,25 @@
  * limitations under the License.
  */
 import {command, metadata, option} from 'clime';
-import chalk from 'chalk';
-import { from as observableFrom } from 'rxjs'
-import { filter, map, mergeMap } from 'rxjs/operators'
 import {
     Account,
     Transaction,
-    AggregateTransaction,
-    AccountHttp,
-    CosignatureSignedTransaction,
+    NamespaceId,
 } from 'symbol-sdk';
 
 import {OptionsResolver} from '../kernel/OptionsResolver';
-import {Contract, ContractInputs} from '../kernel/Contract';
+import {Contract, ContractConstants, ContractInputs} from '../kernel/Contract';
 
-export class PartialCosignatureInputs extends ContractInputs {
+export class OpenTimestampInputs extends ContractInputs {
   @option({
-    flag: 'h',
-    description: 'Partial transaction hash (parent hash / aggregate transaction hash)',
+    flag: 'i',
+    description: 'Data that should be stamped.',
   })
-  hash: string;
+  data: string;
 }
 
 @command({
-  description: 'Disposable Smart Contract for Co-signature of Partial Transactions',
+  description: 'Disposable Smart Contract for the Creation of Open Timestamps',
 })
 export default class extends Contract {
 
@@ -52,7 +47,7 @@ export default class extends Contract {
    * @return {string}
    */
   public getName(): string {
-    return 'PartialCosignature'
+    return 'OpenTimestamp'
   }
 
   /**
@@ -65,18 +60,18 @@ export default class extends Contract {
   }
 
   /**
-   * Execution routine for the `PartialCosignature` smart contract.
+   * Execution routine for the `OpenTimestamp` smart contract.
    *
    * @description This contract is defined in three (3) steps.
-   * This contract sends a cosignature transaction for 1 or more
-   * unsigned partial transactions. If the end-user does not pass
-   * a transaction hash, all unsigned transactions will be co-signed.
+   * This contract sends a transfer transaction containing data
+   * that needs to be stamped. The timestamp of the execution
+   * is also saved on-chain in the message field.
    *
    * @param {PartialCosignatureInputs} inputs
    * @return {Promise<any>}
    */
   @metadata
-  async execute(inputs: PartialCosignatureInputs) 
+  async execute(inputs: OpenTimestampInputs) 
   {
     let argv: ContractInputs
     try {
@@ -89,35 +84,40 @@ export default class extends Contract {
     // -------------------
     // STEP 1: Read Inputs
     // -------------------
+
     try {
-      inputs['hash'] = OptionsResolver(inputs,
-        'hash',
+      inputs['data'] = OptionsResolver(inputs,
+        'data',
         () => { return ''; },
-        'Enter a transaction hash (partial transaction hash) or leave empty (will co-sign any partial transactions): ');
-    } catch (err) { this.error('Please, enter a valid transaction hash.'); }
+        '\nEnter the data that you want to timestamp publicly: ');
+    } catch (err) { this.error('Please, enter a data set.'); }
 
     // --------------------------------
     // STEP 2: Prepare Contract Actions
     // --------------------------------
 
-    const accountHttp = new AccountHttp(this.endpointUrl)
-    const cosignatory = argv['account']
+    const account = argv['account']
+
+    // Contract Action #1: create DTO
+    const timestampDTO = JSON.stringify({
+      'timestamp': (new Date()).valueOf(),
+      'data': inputs['data']
+    })
+
+    // Contract Action #2: create transfer transaction
+    const timestampTransfer = this.factory.getTransferTransaction(
+      account.address, // sent to self
+      new NamespaceId('symbol.xym'),
+      0,
+      timestampDTO, // attach DTO to transfer message
+    );
 
     // --------------------------------
     // STEP 3: Execute Contract Actions
     // --------------------------------
 
-    // read aggregate-bonded transactions
-    let unsignedTxes = await accountHttp.getAccountPartialTransactions(cosignatory.publicAccount.address).toPromise();
-
-    if (! unsignedTxes.length) {
-      console.log('')
-      console.log(chalk.yellow("No transactions found to co-sign."));
-      console.log('')
-      return ; // contract not executed
-    }
-
-    return await this.executeContract(cosignatory, [])
+    // sign transaction and broadcast
+    return await this.executeContract(account, [timestampTransfer])
   }
 
   /**
@@ -131,13 +131,13 @@ export default class extends Contract {
     account: Account,
     transactions: Transaction[]
   ): Promise<any> {
-    return observableFrom(transactions).pipe(
-      filter((_: AggregateTransaction) => !_.signedByAccount(account.publicAccount)),
-      map((transaction: AggregateTransaction) => this.getSigner(account, transaction)
-                                                     .cosignAggregate(account),
-      mergeMap((signedSignature: CosignatureSignedTransaction) => {
-        return this.broadcaster.announceCosignature(account.publicAccount, signedSignature);
-      })
-    ))
+    // shortcut
+    const unsignedTransaction = transactions.shift()
+
+    // sign the transfer transaction with `account`
+    const signedTransaction = this.getSigner(account, unsignedTransaction).sign()
+
+    // announce the aggregate transaction
+    return await this.broadcaster.announce(account.publicAccount, signedTransaction)
   }
 }

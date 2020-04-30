@@ -18,7 +18,7 @@ import {CLI, Shim} from 'clime';
 import * as Path from 'path';
 
 // The second parameter is the path to folder that contains command modules.
-const cli = new CLI('nem2-smart-contract', Path.join(__dirname, 'contracts'));
+const cli = new CLI('symbol-contract', Path.join(__dirname, 'contracts'));
 
 // Clime in its core provides an object-based command-line infrastructure.
 // To have it work as a common CLI, a shim needs to be applied:

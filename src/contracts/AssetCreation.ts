@@ -21,7 +21,7 @@ import {
     Deadline,
     Transaction,
     AggregateTransaction,
-} from 'nem2-sdk';
+} from 'symbol-sdk';
 
 import {OptionsResolver} from '../kernel/OptionsResolver';
 import {Contract, ContractConstants, ContractInputs} from '../kernel/Contract';
@@ -67,6 +67,27 @@ export default class extends Contract {
     return 'AssetCreation'
   }
 
+  /**
+   * Returns whether the contract requires authentication
+   *
+   * @return {boolean}
+   */
+  public requiresAuth(): boolean {
+    return true
+  }
+
+  /**
+   * Execution routine for the `AssetCreation` smart contract.
+   *
+   * @description This contract is defined in three (3) steps.
+   * This contract sends an aggregate transaction containing 1
+   * or more namespace registration transactions, 1 mosaic def
+   * and 1 mosaic supply transactions and also 1 mosaic alias
+   * transaction.
+   *
+   * @param {AssetCreationInputs} inputs
+   * @return {Promise<any>}
+   */
   @metadata
   async execute(inputs: AssetCreationInputs) 
   {

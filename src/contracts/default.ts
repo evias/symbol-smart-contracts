@@ -25,10 +25,6 @@ export const description = `
 
 export const subcommands = [
   {
-    name: 'AccountTag',
-    brief: 'Disposable Smart Contract for Creation of Account Tags',
-  },
-  {
     name: 'AssetCreation',
     brief: 'Disposable Smart Contract for Creation of Assets',
   },
@@ -41,11 +37,11 @@ export const subcommands = [
     brief: 'Disposable Smart Contract for Request of Assets',
   },
   {
-    name: 'MultiLevelHierarchy',
-    brief: 'Disposable Smart Contract for Creation of Multi Level Hierarchies',
+    name: 'PartialCosignature',
+    brief: 'Disposable Smart Contract for Co-signature of Partial Transactions',
   },
   {
-    name: 'NamedObjectCreation',
-    brief: 'Disposable Smart Contract for Creation of Named Objects',
+    name: 'OpenTimestamp',
+    brief: 'Disposable Smart Contract for Creation of Open Timestamps',
   },
 ];

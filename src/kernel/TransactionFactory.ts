@@ -41,7 +41,7 @@ import {
     PlainMessage,
     Address,
     HashLockTransaction,
-} from 'nem2-sdk';
+} from 'symbol-sdk';
 
 import {ContractConstants} from './Contract'
 
@@ -261,13 +261,14 @@ export class TransactionFactory {
     recipient: Address,
     mosaicId: MosaicId|NamespaceId,
     amount: number,
+    message: string = 'nem2-smart-contracts transfer',
   ): TransferTransaction
   {
     return TransferTransaction.create(
       Deadline.create(),
       recipient,
       [new Mosaic(mosaicId, UInt64.fromUint(amount))],
-      PlainMessage.create('nem2-smart-contracts transfer'),
+      PlainMessage.create(message),
       this.networkType,
       UInt64.fromUint(ContractConstants.DEFAULT_TRANSACTION_FEE),
     )

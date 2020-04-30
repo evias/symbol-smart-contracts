@@ -1,5 +1,4 @@
 /**
- * 
  * Copyright 2019 Grégory Saive for NEM (https://nem.io)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +27,7 @@ import {
     NetworkType,
     TransactionStatusError,
     CosignatureSignedTransaction,
-} from 'nem2-sdk';
+} from 'symbol-sdk';
 import { Contract } from './Contract';
 
 export class TransactionBroadcaster {
@@ -272,7 +271,7 @@ export class TransactionBroadcaster {
     const linkStatus = this.endpointUrl + '/transaction/' + error.hash  + '/status'
     console.log('')
     console.log(chalk.red('Smart contract \'' + this.contract.getName() + '\' failed executing'))
-    console.log(chalk.red('Failure Reason (Code):  ' + error.status))
+    console.log(chalk.red('Failure Reason (Code):  ' + error.code))
     console.log(chalk.red('View Status Details:    ' + linkStatus))
     console.log('')
   }

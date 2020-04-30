@@ -21,13 +21,13 @@ import {
     Deadline,
     Transaction,
     AggregateTransaction,
-    MosaicId,
     NamespaceId,
     PublicAccount,
     AccountHttp,
     Address,
     Mosaic,
-} from 'nem2-sdk';
+    AccountInfo,
+} from 'symbol-sdk';
 
 import {OptionsResolver} from '../kernel/OptionsResolver';
 import {Contract, ContractConstants, ContractInputs} from '../kernel/Contract';
@@ -35,7 +35,7 @@ import {Contract, ContractConstants, ContractInputs} from '../kernel/Contract';
 export class AssetRequestInputs extends ContractInputs {
   @option({
     flag: 'a',
-    description: 'Set the asset that will be requested (Ex.: 10 nem.xem)',
+    description: 'Set the asset that will be requested (Ex.: 10 symbol.xym)',
   })
   asset: string;
   @option({
@@ -59,7 +59,7 @@ export default class extends Contract {
    * The asset used for the spam protection lock
    * @var {string} 
    */
-  protected lockAsset: string = 'nem.xem'
+  protected lockAsset: string = 'symbol.xym'
 
   /**
    * The absolute lock amount
@@ -80,6 +80,26 @@ export default class extends Contract {
     return 'AssetRequest'
   }
 
+  /**
+   * Returns whether the contract requires authentication
+   *
+   * @return {boolean}
+   */
+  public requiresAuth(): boolean {
+    return true
+  }
+
+  /**
+   * Execution routine for the `AssetRequest` smart contract.
+   *
+   * @description This contract is defined in three (3) steps.
+   * This contract sends an aggregate transaction containing 1
+   * transfer transaction which must be signed *within 48 hours*
+   * by the recipient of the request (--from).
+   *
+   * @param {AssetRequestInputs} inputs
+   * @return {Promise<any>}
+   */
   @metadata
   async execute(inputs: AssetRequestInputs) 
   {
@@ -99,11 +119,11 @@ export default class extends Contract {
       inputs['asset'] = OptionsResolver(inputs,
         'asset',
         () => { return ''; },
-        '\nEnter an amount and mosaic that will be requested (Ex.: 10 nem.xem): ');
+        '\nEnter an amount and mosaic that will be requested (Ex.: 10 symbol.xym): ');
 
       const parts = inputs['asset'].split(' ')
       if (parts.length != 2) {
-        throw new ExpectedError('Expected an amount and mosaic, Ex.: 10 nem.xem')
+        throw new ExpectedError('Expected an amount and mosaic, Ex.: 10 symbol.xym')
       }
 
       inputs['r_amount'] = parseInt(parts[0])
@@ -114,14 +134,14 @@ export default class extends Contract {
       inputs['from'] = OptionsResolver(inputs,
         'from',
         () => { return ''; },
-        'Enter a recipient account address: ');
+        'Enter a taker account address (Sender of mosaic): ');
     } catch (err) { this.error('Please, enter a valid account address.'); }
 
     // lock asset can be overwritten with --lock or -l
     if (inputs.hasOwnProperty('lock') && inputs['lock'] && inputs['lock'].length) {
       const parts = inputs['lock'].split(' ')
       if (parts.length != 2) {
-        throw new ExpectedError('Expected an amount and mosaic in --lock, Ex.: 10 nem.xem')
+        throw new ExpectedError('Expected an amount and mosaic in --lock, Ex.: 10 symbol.xym')
       }
 
       this.lockAmount = parseInt(parts[0]) * 1000000 // divisibility = 6
@@ -133,27 +153,33 @@ export default class extends Contract {
     // --------------------------------
 
     const accountHttp = new AccountHttp(this.endpointUrl)
-    const account     = argv['account']
-    const recipient   = Address.createFromRawAddress(inputs['from'])
+    const recipient   = argv['account']
+    const sender      = Address.createFromRawAddress(inputs['from'])
 
     // recipient account must be known on the network
-    let pubAccount: PublicAccount
+    let senderPubAccount: PublicAccount
+    let accountInfo: AccountInfo
     try {
-      const accountInfo = await accountHttp.getAccountInfo(recipient).toPromise()
+      accountInfo = await accountHttp.getAccountInfo(sender).toPromise()
       const unknownPub  = '0000000000000000000000000000000000000000000000000000000000000000'
       if (accountInfo.publicKey === unknownPub) {
-        throw new ExpectedError('The recipient account is unknown on this network.')
+        throw new ExpectedError('The sender account (--from) is unknown on this network.')
       }
 
       // instantiate public account to be able to prepare aggregate transaction
-      pubAccount = PublicAccount.createFromPublicKey(accountInfo.publicKey, this.networkType)
-    } catch (err) { this.error('The recipient account is unknown on this network.') }
+      senderPubAccount = PublicAccount.createFromPublicKey(accountInfo.publicKey, this.networkType)
+    } catch (err) { this.error('The sender account (--from) is unknown on this network.') }
+
+    // ---------------------------------
+    // STEP 3: Validate Contract Actions
+    // ---------------------------------
 
     // Contract Action #1: create the requested transfer
     const requestedTransfer = this.factory.getTransferTransaction(
-      account.address,
+      recipient.address,
       new NamespaceId(inputs['r_asset']),
-      inputs['r_amount']
+      inputs['r_amount'],
+      'nem2-smart-contracts pull request',
     );
 
     // --------------------------------
@@ -162,11 +188,11 @@ export default class extends Contract {
 
     // Contract Execution: merge transactions and execute contract
     const allTxes = [
-      requestedTransfer.toAggregate(pubAccount),
+      requestedTransfer.toAggregate(senderPubAccount),
     ];
 
     // wrap all transactions in an aggregate, sign and broadcast
-    return await this.executeContract(account, allTxes)
+    return await this.executeContract(recipient, allTxes)
   }
 
   /**

@@ -22,11 +22,12 @@ import {
     BlockInfo,
     Account,
     Transaction,
-} from 'nem2-sdk';
+    UInt64,
+} from 'symbol-sdk';
 import { Observable, from as observableFrom } from 'rxjs';
 import * as readlineSync from 'readline-sync';
 import { OptionsResolver } from './OptionsResolver'
-import { MnemonicPassPhrase, ExtendedKey, Network, Wallet } from 'nem2-hd-wallets'
+import { MnemonicPassPhrase, ExtendedKey, Network, Wallet } from 'symbol-hd-wallets'
 import { TransactionFactory } from './TransactionFactory';
 import { TransactionSigner } from './TransactionSigner';
 import { TransactionBroadcaster } from './TransactionBroadcaster';
@@ -49,7 +50,7 @@ export abstract class Contract extends Command {
    * @internal
    * @var {string}
    */
-  public generationHash: string = 'CC42AAD7BD45E8C276741AB2524BC30F5529AF162AD12247EF9A98D6B54A385B'
+  public generationHash: string = 'ACECD90E7B248E012803228ADB4424F0D966D24149B72E58987D2BF2F2AF03C4'
 
   /**
    * The network type
@@ -92,6 +93,13 @@ export abstract class Contract extends Command {
   public abstract getName(): string
 
   /**
+   * Returns whether the contract requires authentication
+   *
+   * @return {boolean}
+   */
+  public abstract requiresAuth(): boolean
+
+  /**
    * Execute a smart contract's transactions
    *
    * @param {Account}       account 
@@ -122,7 +130,7 @@ export abstract class Contract extends Command {
    * @return {Observable<ContractInputs}
    */
   protected async configure(
-    inputs: ContractInputs
+    inputs: ContractInputs,
   ): Promise<ContractInputs> {
     const params = new ContractInputs();
 
@@ -137,24 +145,24 @@ export abstract class Contract extends Command {
 
     console.log('');
     const useCustomNode = readlineSync.keyInYN(
-      'Do you want to connect to a custom node? ');
+      'Do you want to connect to a custom node? ')
 
     if (useCustomNode === true) {
       try {
         params['apiUrl'] = OptionsResolver(inputs,
           'apiUrl',
           () => { return ''; },
-          'Enter a node URL (Ex.: http://localhost:3000): ');
+          'Enter a node URL (Ex.: http://localhost:3000): ')
 
         // only overwrite if value provided
         if (params['apiUrl'] && params['apiUrl'].length) {
-          this.endpointUrl = params['apiUrl'];
+          this.endpointUrl = params['apiUrl']
         }
 
         await this.connect(inputs)
       } 
       catch (err) {
-        this.error('The node URL provided is invalid.');
+        this.error('The node URL provided is invalid.')
       }
     }
     else await this.connect(inputs)
@@ -163,31 +171,36 @@ export abstract class Contract extends Command {
     // CONFIG 2: Account
     // ------------------
 
-    console.log('');
-    const useExistingAccount = readlineSync.keyInYN(
-      'Do you want to use an existing account? ');
+    if (this.requiresAuth() === true) {
 
-    if (useExistingAccount === true) {
+      //XXX read "profiles"
+
       console.log('');
-      const usePrivateKey = readlineSync.keyInYN(
-        'Do you want to enter a private key? ');
+      const useRandomAccount = readlineSync.keyInYN(
+        'Do you want to generate a random account? ')
 
-      if (usePrivateKey === true) {
-        params['account'] = this.createAccountFromPrivateKey(OptionsResolver(inputs,
-          'account',
-          () => { return ''; },
-          'Enter an account private key: '))
+      if (useRandomAccount === true) {
+        const mnemonic = MnemonicPassPhrase.createRandom()
+        params['account'] = this.createAccountFromMnemonic(mnemonic)
       }
-      else { // use mnemonic pass phrase
-        params['account'] = this.createAccountFromMnemonic(OptionsResolver(inputs,
-          'mnemonic',
-          () => { return ''; },
-          'Enter a 24-words mnemonic passphrase: '))
+      else {
+        console.log('');
+        const usePrivateKey = readlineSync.keyInYN(
+          'Do you want to enter a private key? ')
+
+        if (usePrivateKey === true) {
+          params['account'] = this.createAccountFromPrivateKey(OptionsResolver(inputs,
+            'account',
+            () => { return ''; },
+            'Enter an account private key: '))
+        }
+        else { // use mnemonic pass phrase
+          params['account'] = this.createAccountFromMnemonic(OptionsResolver(inputs,
+            'mnemonic',
+            () => { return ''; },
+            'Enter a 24-words mnemonic passphrase: '))
+        }
       }
-    }
-    else {
-      const mnemonic = MnemonicPassPhrase.createRandom()
-      params['account'] = this.createAccountFromMnemonic(mnemonic)
     }
 
     // done configuring
@@ -205,7 +218,7 @@ export abstract class Contract extends Command {
 
     // read first block of the network to identify
     // generationHash and networkType
-    const firstBlock = await blockHttp.getBlockByHeight('1').toPromise()
+    const firstBlock = await blockHttp.getBlockByHeight(UInt64.fromUint(1)).toPromise()
     console.log(chalk.green('Connection established successfully'))
 
     this.networkType = firstBlock.networkType
@@ -239,14 +252,11 @@ export abstract class Contract extends Command {
    * @return {Account}
    */
   protected createAccountFromMnemonic(mnemonic: MnemonicPassPhrase): Account {
-    const network = [NetworkType.MIJIN, NetworkType.MIJIN_TEST].includes(this.networkType) ?
-                      Network.CATAPULT
-                    : Network.CATAPULT_PUBLIC
     const seed = mnemonic.toSeed().toString('hex')
-    const xkey = ExtendedKey.createFromSeed(seed, network)
+    const xkey = ExtendedKey.createFromSeed(seed, Network.CATAPULT)
     const wallet = new Wallet(xkey)
     return wallet.getChildAccount(
-      "m/44'/43'/0'/0'/0'",
+      "m/44'/4343'/0'/0'/0'",
       this.networkType
     );
   }
@@ -279,7 +289,7 @@ export class ContractInputs extends Options {
   apiUrl: string;
   @option({
     flag: 'e',
-    description: 'Explorer URL (Ex.: "http://explorer.nemtech.network")',
+    description: 'Explorer URL (Ex.: "http://explorer.symboldev.network")',
   })
   explorerUrl: string;
   @option({
@@ -316,29 +326,29 @@ export class ContractConstants {
    * Default fee to use for aggregate transactions
    * @var {number}
    */
-  public static DEFAULT_AGGREGATE_FEE: number = 100000 // 0.1 nem.xem
+  public static DEFAULT_AGGREGATE_FEE: number = 100000 // 0.1 symbol.xym
 
   /**
    * Default fee to use for normal transactions
    * @var {number}
    */
-  public static DEFAULT_TRANSACTION_FEE: number = 30000 // 0.03 nem.xem
+  public static DEFAULT_TRANSACTION_FEE: number = 30000 // 0.03 symbol.xym
 
   /**
    * Default fee for transactions with rental fee
    * @var {number}
    */
-  public static DEFAULT_FEE_WITH_RENTAL: number = 1 * ContractConstants.BLOCKS_IN_ONE_YEAR // 2,102400 nem.xem
+  public static DEFAULT_FEE_WITH_RENTAL: number = 1 * ContractConstants.BLOCKS_IN_ONE_YEAR // 2,102400 symbol.xym
 
   /**
    * Default API node URL
    * @var {string}
    */
-  public static DEFAULT_NODE_URL: string = 'http://api-harvest-20.eu-west-1.nemtech.network:3000'
+  public static DEFAULT_NODE_URL: string = 'http://api-01.us-west-1.0941-v1.symboldev.network:3000'
 
   /**
    * Default explorer URL
    * @var {string}
    */
-  public static DEFAULT_EXPLORER_URL: string = 'http://explorer.nemtech.network'
+  public static DEFAULT_EXPLORER_URL: string = 'http://explorer.symboldev.network'
 }

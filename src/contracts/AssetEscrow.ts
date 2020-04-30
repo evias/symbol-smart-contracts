@@ -24,7 +24,7 @@ import {
     NamespaceId,
     PublicAccount,
     Mosaic,
-} from 'nem2-sdk';
+} from 'symbol-sdk';
 
 import {OptionsResolver} from '../kernel/OptionsResolver';
 import {Contract, ContractConstants, ContractInputs} from '../kernel/Contract';
@@ -61,7 +61,7 @@ export default class extends Contract {
    * The asset used for the spam protection lock
    * @var {string} 
    */
-  protected lockAsset: string = 'nem.xem'
+  protected lockAsset: string = 'symbol.xym'
 
   /**
    * The absolute lock amount
@@ -82,6 +82,26 @@ export default class extends Contract {
     return 'AssetEscrow'
   }
 
+  /**
+   * Returns whether the contract requires authentication
+   *
+   * @return {boolean}
+   */
+  public requiresAuth(): boolean {
+    return true
+  }
+
+  /**
+   * Execution routine for the `AssetEscrow` smart contract.
+   *
+   * @description This contract is defined in three (3) steps.
+   * This contract sends an aggregate transaction containing 2
+   * transfer transactions which must be signed *within 48 hours*
+   * by both, the maker (first party) and the taker (second party).
+   *
+   * @param {AssetEscrowInputs} inputs
+   * @return {Promise<any>}
+   */
   @metadata
   async execute(inputs: AssetEscrowInputs) 
   {
@@ -101,11 +121,11 @@ export default class extends Contract {
       inputs['asset1'] = OptionsResolver(inputs,
         'asset1',
         () => { return ''; },
-        '\nEnter an amount and mosaic for the first party (Ex.: 10 nem.xem): ');
+        '\nEnter an amount and mosaic for the first party (Ex.: 10 symbol.xym): ');
 
       const parts = inputs['asset1'].split(' ')
       if (parts.length != 2) {
-        throw new ExpectedError('Expected an amount and mosaic in --asset1, Ex.: 10 nem.xem')
+        throw new ExpectedError('Expected an amount and mosaic in --asset1, Ex.: 10 symbol.xym')
       }
 
       inputs['l_amount'] = parseInt(parts[0])
@@ -123,11 +143,11 @@ export default class extends Contract {
       inputs['asset2'] = OptionsResolver(inputs,
         'asset2',
         () => { return ''; },
-        'Enter an amount and mosaic for the second party (Ex.: 10 nem.xem): ');
+        'Enter an amount and mosaic for the second party (Ex.: 10 symbol.xym): ');
 
       const parts = inputs['asset2'].split(' ')
       if (parts.length != 2) {
-        throw new ExpectedError('Expected an amount and mosaic in --asset2, Ex.: 10 nem.xem')
+        throw new ExpectedError('Expected an amount and mosaic in --asset2, Ex.: 10 symbol.xym')
       }
 
       inputs['r_amount'] = parseInt(parts[0])
@@ -138,7 +158,7 @@ export default class extends Contract {
     if (inputs.hasOwnProperty('lock') && inputs['lock'] && inputs['lock'].length) {
       const parts = inputs['lock'].split(' ')
       if (parts.length != 2) {
-        throw new ExpectedError('Expected an amount and mosaic in --lock, Ex.: 10 nem.xem')
+        throw new ExpectedError('Expected an amount and mosaic in --lock, Ex.: 10 symbol.xym')
       }
 
       this.lockAmount = parseInt(parts[0]) * 1000000 // divisibility = 6
@@ -156,15 +176,17 @@ export default class extends Contract {
     const leftHandTransfer = this.factory.getTransferTransaction(
       taker.address,
       new NamespaceId(inputs['l_asset']),
-      inputs['l_amount']
-    );
+      inputs['l_amount'],
+      'escrow 1st party',
+    )
 
     // Contract Action #2: create right hand transfer
     const rightHandTransfer = this.factory.getTransferTransaction(
       account.address,
       new NamespaceId(inputs['r_asset']),
-      inputs['r_amount']
-    );
+      inputs['r_amount'],
+      'escrow 2nd party',
+    )
 
     // --------------------------------
     // STEP 3: Execute Contract Actions
@@ -174,7 +196,7 @@ export default class extends Contract {
     const allTxes = [
       leftHandTransfer.toAggregate(account.publicAccount),
       rightHandTransfer.toAggregate(taker),
-    ];
+    ]
 
     // wrap all transactions in an aggregate, sign and broadcast
     return await this.executeContract(account, allTxes)
