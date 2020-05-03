@@ -1,6 +1,6 @@
 /**
  * 
- * Copyright 2019 Grégory Saive for NEM (https://nem.io)
+ * Copyright 2019-present Grégory Saive for NEM (https://nem.io)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,25 +15,25 @@
  * limitations under the License.
  */
 export const description = `
-                      ____
- _ __   ___ _ __ ___ |___ \\
-| \'_ \\ / _ \\ \'_ \` _ \\  __) |
-| | | |  __/ | | | | |/ __/
-|_| |_|\\___|_| |_| |_|_____|
-
+      _________            ___.          .__   
+     /   _____/__.__. _____\\_ |__   ____ |  |  
+     \\_____  <   |  |/     \\| __ \\ /  _ \\|  |  
+     /        \\___  |  Y Y  \\ \\_\\ (  <_> )  |__
+    /_______  / ____|__|_|  /___  /\\____/|____/
+            \\/\\/          \\/    \\/             
 `;
 
 export const subcommands = [
   {
-    name: 'AssetCreation',
+    name: 'CreateAsset',
     brief: 'Disposable Smart Contract for Creation of Assets',
   },
   {
-    name: 'AssetEscrow',
+    name: 'EscrowAsset',
     brief: 'Disposable Smart Contract for Escrow of Assets',
   },
   {
-    name: 'AssetRequest',
+    name: 'RequestAsset',
     brief: 'Disposable Smart Contract for Request of Assets',
   },
   {
@@ -43,5 +43,17 @@ export const subcommands = [
   {
     name: 'OpenTimestamp',
     brief: 'Disposable Smart Contract for Creation of Open Timestamps',
+  },
+  {
+    name: 'CreateSecurity',
+    brief: '(NIP13) Disposable Smart Contract for Creation of Security Tokens (NIP13 CreateToken)',
+  },
+  {
+    name: 'PublishSecurity',
+    brief: '(NIP13) Disposable Smart Contract for Publication of Security Tokens (NIP13 PublishToken)',
+  },
+  {
+    name: 'TransferSecurity',
+    brief: '(NIP13) Disposable Smart Contract for Transfer of Security Tokens (NIP13 TransferOwnership)',
   },
 ];

@@ -1,6 +1,6 @@
 /**
  * 
- * Copyright 2019 Grégory Saive for NEM (https://nem.io)
+ * Copyright 2019-present Grégory Saive for NEM (https://nem.io)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -152,7 +152,7 @@ export abstract class Contract extends Command {
         params['apiUrl'] = OptionsResolver(inputs,
           'apiUrl',
           () => { return ''; },
-          'Enter a node URL (Ex.: http://localhost:3000): ')
+          'Enter a node URL (e.g.: http://localhost:3000): ')
 
         // only overwrite if value provided
         if (params['apiUrl'] && params['apiUrl'].length) {
@@ -195,10 +195,26 @@ export abstract class Contract extends Command {
             'Enter an account private key: '))
         }
         else { // use mnemonic pass phrase
-          params['account'] = this.createAccountFromMnemonic(OptionsResolver(inputs,
+          console.log('');
+
+          const mnemonic = OptionsResolver(inputs,
             'mnemonic',
             () => { return ''; },
-            'Enter a 24-words mnemonic passphrase: '))
+            'Enter a 24-words mnemonic passphrase: ')
+
+          console.log('');
+          const useCustomPath = readlineSync.keyInYN(
+            'Do you want to use a custom derivation path? ')
+
+          let path = `m/44'/4343'/0'/0'/0'`
+          if (useCustomPath) {
+            path = OptionsResolver(inputs,
+              'path',
+              () => { return ''; },
+              "Enter a BIP39 derivation path (e.g.: m/44'/4343'/0'/0'/0'): ")
+          }
+
+          params['account'] = this.createAccountFromMnemonic(mnemonic, path)
         }
       }
     }
@@ -219,6 +235,7 @@ export abstract class Contract extends Command {
     // read first block of the network to identify
     // generationHash and networkType
     const firstBlock = await blockHttp.getBlockByHeight(UInt64.fromUint(1)).toPromise()
+    console.log(chalk.green('Using node: ', this.endpointUrl))
     console.log(chalk.green('Connection established successfully'))
 
     this.networkType = firstBlock.networkType
@@ -251,12 +268,12 @@ export abstract class Contract extends Command {
    * @param {MnemonicPassPhrase} privateKey
    * @return {Account}
    */
-  protected createAccountFromMnemonic(mnemonic: MnemonicPassPhrase): Account {
+  protected createAccountFromMnemonic(mnemonic: MnemonicPassPhrase, path: string = "m/44'/4343'/0'/0'/0'"): Account {
     const seed = mnemonic.toSeed().toString('hex')
     const xkey = ExtendedKey.createFromSeed(seed, Network.CATAPULT)
     const wallet = new Wallet(xkey)
     return wallet.getChildAccount(
-      "m/44'/4343'/0'/0'/0'",
+      path,
       this.networkType
     );
   }
@@ -350,5 +367,17 @@ export class ContractConstants {
    * Default explorer URL
    * @var {string}
    */
-  public static DEFAULT_EXPLORER_URL: string = 'http://explorer.symboldev.network'
+  public static DEFAULT_EXPLORER_URL: string = 'http://explorer-941.symboldev.network'
+
+  /**
+   * Default locked mosaic (hash lock)
+   * @var {string}
+   */
+  public static LOCK_MOSAIC: string = '519FC24B9223E0B4' // symbol.xym
+
+  /**
+   * Default locked mosaic amount (hash lock)
+   * @var {number}
+   */
+  public static LOCK_AMOUNT: number = 10000000
 }

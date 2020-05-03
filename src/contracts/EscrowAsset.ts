@@ -1,6 +1,6 @@
 /**
  * 
- * Copyright 2019 Grégory Saive for NEM (https://nem.io)
+ * Copyright 2019-present Grégory Saive for NEM (https://nem.io)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,26 +23,29 @@ import {
     AggregateTransaction,
     NamespaceId,
     PublicAccount,
-    AccountHttp,
-    Address,
     Mosaic,
-    AccountInfo,
 } from 'symbol-sdk';
 
 import {OptionsResolver} from '../kernel/OptionsResolver';
 import {Contract, ContractConstants, ContractInputs} from '../kernel/Contract';
+import {description} from './default'
 
-export class AssetRequestInputs extends ContractInputs {
+export class EscrowAssetInputs extends ContractInputs {
   @option({
     flag: 'a',
-    description: 'Set the asset that will be requested (Ex.: 10 symbol.xym)',
+    description: 'Left hand asset for the escrow',
   })
-  asset: string;
+  asset1: string;
   @option({
-    flag: 'f',
-    description: 'Account address of the recipient of the asset request',
+    flag: 't',
+    description: 'Right hand escrow recipient (second party)',
   })
-  from: string;
+  taker: string;
+  @option({
+    flag: 'b',
+    description: 'Right hand asset for the escrow',
+  })
+  asset2: string;
   @option({
     flag: 'l',
     description: 'Asset that is locked (spam protection)',
@@ -51,7 +54,7 @@ export class AssetRequestInputs extends ContractInputs {
 }
 
 @command({
-  description: 'Disposable Smart Contract for the Request of Assets from friends',
+  description: 'Disposable Smart Contract for the Escrow of Assets',
 })
 export default class extends Contract {
 
@@ -77,7 +80,7 @@ export default class extends Contract {
    * @return {string}
    */
   public getName(): string {
-    return 'AssetRequest'
+    return 'EscrowAsset'
   }
 
   /**
@@ -90,19 +93,21 @@ export default class extends Contract {
   }
 
   /**
-   * Execution routine for the `AssetRequest` smart contract.
+   * Execution routine for the `EscrowAsset` smart contract.
    *
    * @description This contract is defined in three (3) steps.
-   * This contract sends an aggregate transaction containing 1
-   * transfer transaction which must be signed *within 48 hours*
-   * by the recipient of the request (--from).
+   * This contract sends an aggregate transaction containing 2
+   * transfer transactions which must be signed *within 48 hours*
+   * by both, the maker (first party) and the taker (second party).
    *
-   * @param {AssetRequestInputs} inputs
+   * @param {EscrowAssetInputs} inputs
    * @return {Promise<any>}
    */
   @metadata
-  async execute(inputs: AssetRequestInputs) 
+  async execute(inputs: EscrowAssetInputs) 
   {
+    console.log(description)
+
     let argv: ContractInputs
     try {
       argv = await this.configure(inputs)
@@ -116,26 +121,41 @@ export default class extends Contract {
     // -------------------
 
     try {
-      inputs['asset'] = OptionsResolver(inputs,
-        'asset',
+      inputs['asset1'] = OptionsResolver(inputs,
+        'asset1',
         () => { return ''; },
-        '\nEnter an amount and mosaic that will be requested (Ex.: 10 symbol.xym): ');
+        '\nEnter an amount and mosaic for the first party (Ex.: 10 symbol.xym): ');
 
-      const parts = inputs['asset'].split(' ')
+      const parts = inputs['asset1'].split(' ')
       if (parts.length != 2) {
-        throw new ExpectedError('Expected an amount and mosaic, Ex.: 10 symbol.xym')
+        throw new ExpectedError('Expected an amount and mosaic in --asset1, Ex.: 10 symbol.xym')
+      }
+
+      inputs['l_amount'] = parseInt(parts[0])
+      inputs['l_asset']  = parts[1]
+    } catch (err) { this.error('Please, enter a valid mosaic entry in asset1.'); }
+
+    try {
+      inputs['taker'] = OptionsResolver(inputs,
+        'taker',
+        () => { return ''; },
+        'Enter a taker account public key (second party): ');
+    } catch (err) { this.error('Please, enter a valid account address.'); }
+
+    try {
+      inputs['asset2'] = OptionsResolver(inputs,
+        'asset2',
+        () => { return ''; },
+        'Enter an amount and mosaic for the second party (Ex.: 10 symbol.xym): ');
+
+      const parts = inputs['asset2'].split(' ')
+      if (parts.length != 2) {
+        throw new ExpectedError('Expected an amount and mosaic in --asset2, Ex.: 10 symbol.xym')
       }
 
       inputs['r_amount'] = parseInt(parts[0])
       inputs['r_asset']  = parts[1]
-    } catch (err) { this.error('Please, enter a valid mosaic entry in asset1.'); }
-
-    try {
-      inputs['from'] = OptionsResolver(inputs,
-        'from',
-        () => { return ''; },
-        'Enter a taker account address (Sender of mosaic): ');
-    } catch (err) { this.error('Please, enter a valid account address.'); }
+    } catch (err) { this.error('Please, enter a valid mosaic entry in asset2.'); }
 
     // lock asset can be overwritten with --lock or -l
     if (inputs.hasOwnProperty('lock') && inputs['lock'] && inputs['lock'].length) {
@@ -147,40 +167,29 @@ export default class extends Contract {
       this.lockAmount = parseInt(parts[0]) * 1000000 // divisibility = 6
       this.lockAsset  = parts[1]
     }
-
+  
     // --------------------------------
     // STEP 2: Prepare Contract Actions
     // --------------------------------
 
-    const accountHttp = new AccountHttp(this.endpointUrl)
-    const recipient   = argv['account']
-    const sender      = Address.createFromRawAddress(inputs['from'])
+    const account = argv['account']
+    const taker   = PublicAccount.createFromPublicKey(inputs['taker'], this.networkType)
 
-    // recipient account must be known on the network
-    let senderPubAccount: PublicAccount
-    let accountInfo: AccountInfo
-    try {
-      accountInfo = await accountHttp.getAccountInfo(sender).toPromise()
-      const unknownPub  = '0000000000000000000000000000000000000000000000000000000000000000'
-      if (accountInfo.publicKey === unknownPub) {
-        throw new ExpectedError('The sender account (--from) is unknown on this network.')
-      }
+    // Contract Action #1: create left hand transfer
+    const leftHandTransfer = this.factory.getTransferTransaction(
+      taker.address,
+      new NamespaceId(inputs['l_asset']),
+      inputs['l_amount'],
+      'escrow 1st party',
+    )
 
-      // instantiate public account to be able to prepare aggregate transaction
-      senderPubAccount = PublicAccount.createFromPublicKey(accountInfo.publicKey, this.networkType)
-    } catch (err) { this.error('The sender account (--from) is unknown on this network.') }
-
-    // ---------------------------------
-    // STEP 3: Validate Contract Actions
-    // ---------------------------------
-
-    // Contract Action #1: create the requested transfer
-    const requestedTransfer = this.factory.getTransferTransaction(
-      recipient.address,
+    // Contract Action #2: create right hand transfer
+    const rightHandTransfer = this.factory.getTransferTransaction(
+      account.address,
       new NamespaceId(inputs['r_asset']),
       inputs['r_amount'],
-      'nem2-smart-contracts pull request',
-    );
+      'escrow 2nd party',
+    )
 
     // --------------------------------
     // STEP 3: Execute Contract Actions
@@ -188,11 +197,12 @@ export default class extends Contract {
 
     // Contract Execution: merge transactions and execute contract
     const allTxes = [
-      requestedTransfer.toAggregate(senderPubAccount),
-    ];
+      leftHandTransfer.toAggregate(account.publicAccount),
+      rightHandTransfer.toAggregate(taker),
+    ]
 
     // wrap all transactions in an aggregate, sign and broadcast
-    return await this.executeContract(recipient, allTxes)
+    return await this.executeContract(account, allTxes)
   }
 
   /**

@@ -1,6 +1,6 @@
 /**
  * 
- * Copyright 2019 Grégory Saive for NEM (https://nem.io)
+ * Copyright 2019-present Grégory Saive for NEM (https://nem.io)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import {
 
 import {OptionsResolver} from '../kernel/OptionsResolver';
 import {Contract, ContractConstants, ContractInputs} from '../kernel/Contract';
+import {description} from './default'
 
 export class OpenTimestampInputs extends ContractInputs {
   @option({
@@ -73,6 +74,8 @@ export default class extends Contract {
   @metadata
   async execute(inputs: OpenTimestampInputs) 
   {
+    console.log(description)
+
     let argv: ContractInputs
     try {
       argv = await this.configure(inputs)
