@@ -49,11 +49,11 @@ export const subcommands = [
     brief: '(NIP13) Disposable Smart Contract for Creation of Security Tokens (NIP13 CreateToken)',
   },
   {
-    name: 'PublishSecurity',
-    brief: '(NIP13) Disposable Smart Contract for Publication of Security Tokens (NIP13 PublishToken)',
+    name: 'IssueSecurity',
+    brief: '(NIP13) Disposable Smart Contract for Issuance of Security Tokens (NIP13 TransferOwnership with sender being the target account)',
   },
   {
     name: 'TransferSecurity',
-    brief: '(NIP13) Disposable Smart Contract for Transfer of Security Tokens (NIP13 TransferOwnership)',
+    brief: '(NIP13) Disposable Smart Contract for Transfer of Security Tokens between Partitions (NIP13 TransferOwnership with sender being a partition account)',
   },
 ];

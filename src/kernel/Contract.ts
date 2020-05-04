@@ -23,6 +23,7 @@ import {
     Account,
     Transaction,
     UInt64,
+    RepositoryFactoryHttp,
 } from 'symbol-sdk';
 import { Observable, from as observableFrom } from 'rxjs';
 import * as readlineSync from 'readline-sync';
@@ -58,6 +59,13 @@ export abstract class Contract extends Command {
    * @var {NetworkType}
    */
   public networkType: NetworkType = NetworkType.TEST_NET
+
+  /**
+   * The repository factory
+   * @internal
+   * @var {RepositoryFactoryHttp}
+   */
+  public factoryHttp: RepositoryFactoryHttp
 
   /**
    * The transaction factory
@@ -240,6 +248,11 @@ export abstract class Contract extends Command {
 
     this.networkType = firstBlock.networkType
     this.generationHash = firstBlock.generationHash
+    this.factoryHttp = new RepositoryFactoryHttp(
+      this.endpointUrl,
+      this.networkType,
+      this.generationHash,
+    )
 
     // also create transaction factory for said network
     this.factory = TransactionFactory.create(this.endpointUrl, this.networkType)
