@@ -17,8 +17,8 @@
 import chalk from 'chalk';
 import { command, metadata, option } from 'clime'
 import * as readlineSync from 'readline-sync';
-import { NIP13, NetworkConfig, TransactionParameters } from 'symbol-token-standards'
-import { Account, PublicAccount, Transaction, Mosaic, MosaicId, UInt64, Deadline, Address } from 'symbol-sdk'
+import { NIP13, NetworkConfig, TransactionParameters, CommandOption } from 'symbol-token-standards'
+import { Account, PublicAccount, Transaction, Mosaic, MosaicId, UInt64, Deadline, AccountInfo, Address } from 'symbol-sdk'
 import { MnemonicPassPhrase } from 'symbol-hd-wallets'
 import { TransactionURI } from 'symbol-uri-scheme'
 
@@ -26,36 +26,21 @@ import { OptionsResolver } from '../kernel/OptionsResolver'
 import { Contract, ContractConstants, ContractInputs } from '../kernel/Contract'
 import {description} from './default'
 
-export class CreateSecurityInputs extends ContractInputs {
-  @option({
-    flag: 'n',
-    description: 'Friendly name for the security token',
-  })
-  name: string;
-  @option({
-    flag: 's',
-    description: 'Total supply to create',
-  })
-  supply: number;
-  @option({
-    flag: 'o',
-    description: 'Total number of operators',
-  })
-  operators: number;
+export class ModifySecurityMetadataInputs extends ContractInputs {
   @option({
     flag: 'm',
-    description: 'Use an existing authority address or public key',
+    description: 'Use an existing BIP39 mnemonic pass phrase',
   })
-  authority: string;
+  mnemonic: string;
   @option({
     flag: 'y',
-    description: 'Force creation of security token',
+    description: 'Force lock of security token',
   })
   yes: boolean;
 }
 
 @command({
-  description: 'Disposable Smart Contract for the Creation of Securities',
+  description: 'Disposable Smart Contract for Unlocking of Securities',
 })
 export default class extends Contract {
 
@@ -69,7 +54,7 @@ export default class extends Contract {
    * @return {string}
    */
   public getName(): string {
-    return 'CreateSecurity'
+    return 'ModifySecurityMetadata'
   }
 
   /**
@@ -82,7 +67,7 @@ export default class extends Contract {
   }
 
   /**
-   * Execution routine for the `CreateSecurity` smart contract.
+   * Execution routine for the `ModifySecurityMetadata` smart contract.
    *
    * @description This contract is defined in three (3) steps.
    * This contract sends an aggregate transaction containing 1
@@ -90,11 +75,11 @@ export default class extends Contract {
    * and 1 mosaic supply transactions and also 1 mosaic alias
    * transaction.
    *
-   * @param {CreateSecurityInputs} inputs
+   * @param {ModifySecurityMetadataInputs} inputs
    * @return {Promise<any>}
    */
   @metadata
-  async execute(inputs: CreateSecurityInputs) 
+  async execute(inputs: ModifySecurityMetadataInputs) 
   {
     console.log(description)
 
@@ -109,35 +94,7 @@ export default class extends Contract {
     // -------------------
     // STEP 1: Read Inputs
     // -------------------
-    try {
-      console.log('')
-      inputs['name'] = OptionsResolver(inputs,
-        'name',
-        () => { return ''; },
-        'Enter a friendly name for the financial instrument: ')
-    } catch (err) { this.error('Invalid name.') }
-
-    try {
-      console.log('')
-      inputs['supply'] = parseInt(OptionsResolver(inputs,
-        'supply',
-        () => { return ''; },
-        'Enter a number of shares for the financial instruments: '))
-
-      // do not allow 0-supply
-      if (inputs['supply'] <= 0) {
-        inputs['supply'] = 1
-      }
-    } catch (err) { this.error('Invalid supply.') }
-
-    try {
-      console.log('')
-      inputs['operators'] = parseInt(OptionsResolver(inputs,
-        'operators',
-        () => { return ''; },
-        'How many operators do you want to configure? '))
-    } catch (err) { this.error('Invalid count.') }
-
+    
     // prepare security metadata
     const metadata = new NIP13.TokenMetadata('', '', '', '', '', '', {})
 
@@ -206,87 +163,24 @@ export default class extends Contract {
     // STEP 2: Prepare Contract Actions
     // --------------------------------
 
-    const networkConfig: NetworkConfig = new NetworkConfig(
-      this.endpointUrl,
-      this.networkType,
-      this.generationHash,
-      new MosaicId(ContractConstants.LOCK_MOSAIC)
-    )
-
-    // authority account is used to list verified tokens
-    let authority: PublicAccount
-
-    console.log('')
-    const useAuthorityMnemonic = readlineSync.keyInYN(
-      'Do you want to enter a mnemonic pass phrase for the authority account? ')
-    if (useAuthorityMnemonic === true) {
-      inputs['authority'] = OptionsResolver(inputs,
-        'authority',
-        () => { return ''; },
-        'Enter a mnemonic pass phrase for the authority account: ')
-
-      const authority39 = new MnemonicPassPhrase(inputs['authority'])
-
-      // beautify backup info
-      this.printPassPhrase('Authority Backup Passphrase', authority39)
-
-      // create authority from random BIP39 pass phrase
-      const auth = new NIP13.TokenAuthority(
-        networkConfig,
-        authority39,
-      )
-
-      authority = auth.getAuthority().publicAccount
-      console.log(chalk.green('NIP13 Authority: ' + auth.getAuthority().address.plain()))
-
-      if (inputs['debug'] === true) {
-        console.log(chalk.red('\t\t    ' + auth.getAuthority().privateKey))
-      }
-    }
-    else {
-      try {
-        inputs['authority'] = OptionsResolver(inputs,
-          'authority',
-          () => { return ''; },
-          'Enter an authority address or public key: ')
-
-        if ([40, 46].includes(inputs['authority'].length)) {
-          const accountInfo = await this.factoryHttp.createAccountRepository().getAccountInfo(
-            Address.createFromRawAddress(inputs['authority']),
-          ).toPromise()
-
-          authority = accountInfo.publicAccount
-        }
-        else if (inputs['authority'].length == 64) {
-          authority = PublicAccount.createFromPublicKey(
-            inputs['authority'],
-            this.networkType,
-          )
-        }
-        else throw new Error('Invalid authority.')
-      }
-      catch (err) { this.error('Invalid authority.') }
-    }
-
-    // Creating security tokens always uses random bip39 pass phrase
+    // always re-use bip39 mnemonic
     let bip39: MnemonicPassPhrase
-    console.log('')
-    const useCustomMnemonic = readlineSync.keyInYN(
-      'Do you want to enter a mnemonic pass phrase for the target account? ')
-    if (useCustomMnemonic === true) {
+    if (!inputs['mnemonic']) {
       console.log('')
       bip39 = new MnemonicPassPhrase(OptionsResolver(inputs,
           'mnemonic',
           () => { return ''; },
-          'Enter a 24-words mnemonic passphrase for target account: '))
+          'Enter a 24-words mnemonic passphrase: '))
     }
-    else bip39 = MnemonicPassPhrase.createRandom()
-
-    // beautify backup info
-    this.printPassPhrase('Security Token Backup Passphrase', bip39)
+    else bip39 = new MnemonicPassPhrase(inputs['mnemonic'])
 
     const token = new NIP13.Token(
-      networkConfig,
+      new NetworkConfig(
+        this.endpointUrl,
+        this.networkType,
+        this.generationHash,
+        new MosaicId(ContractConstants.LOCK_MOSAIC)
+      ),
       bip39,
     )
 
@@ -296,20 +190,6 @@ export default class extends Contract {
     console.log(chalk.green('NIP13 Token Target: ' + target.address.plain()))
     console.log(chalk.red('\t\t    ' + target.privateKey))
 
-    // derive OPERATORS account(s)
-    const operators: PublicAccount[] = [] 
-    for (let i = 0; i < inputs['operators']; i++) {
-      const operator: Account = token.getOperator(i+1)
-
-      if (inputs['debug'] === true) {
-        console.log(chalk.yellow('Operator (' + (i+1) + '): ' + operator.address.plain()))
-        console.log(chalk.red('\t      ' + operator.privateKey))
-      }
-
-      operators.push(operator.publicAccount)
-    }
-    console.log('')
-
     // --------------------------------
     // STEP 3: Execute Contract Actions
     // --------------------------------
@@ -318,17 +198,16 @@ export default class extends Contract {
       750000, // maxFee
     )
 
-    const tokenId = token.create(
-      inputs['name'], // security token name
-      target.publicAccount, // actor
-      authority, // token authority
-      operators, // operators
-      inputs['supply'],
-      metadata,
+    // transfer shares
+    const resultURI: TransactionURI = await token.execute(
+      token.getOperator(1).publicAccount,
+      token.identifier,
+      'ModifyMetadata',
       params,
+      [
+        new CommandOption('metadata', metadata),
+      ]
     )
-
-    const resultURI: TransactionURI = token.result
 
     console.log('')
     console.log(chalk.yellow('Contract URI: ' + resultURI.build()))
@@ -337,7 +216,7 @@ export default class extends Contract {
     // whether to force execution or ask for next step
     if (!inputs['yes']) {
       const shouldContinue = readlineSync.keyInYN(
-        'Do you want to create the security token now? ')
+        'Do you want to lock the token holder partition now? ')
 
       if (shouldContinue === false) {
         return ;
@@ -345,7 +224,7 @@ export default class extends Contract {
     }
 
     // wrap all transactions in an aggregate, sign and broadcast
-    return await this.executeContract(target, [resultURI.toTransaction()])
+    return await this.executeContract(token.getOperator(1), [resultURI.toTransaction()])
   }
 
   /**
@@ -380,20 +259,5 @@ export default class extends Contract {
 
     // announce the aggregate transaction
     return await this.broadcaster.announcePartial(account.publicAccount, signedLockFundsTx, signedTransaction)
-  }
-
-  private printPassPhrase(
-    label: string,
-    bip39: MnemonicPassPhrase,
-  ) {
-    const words = bip39.plain.split(' ')
-    console.log('')
-    console.log(chalk.yellow(label + ': '))
-    console.log(chalk.yellow('\t') + '-'.repeat(55))
-    console.log(chalk.red('\t' + words.slice(0, 8).join(' ')))
-    console.log(chalk.red('\t' + words.slice(8, 16).join(' ')))
-    console.log(chalk.red('\t' + words.slice(16, 24).join(' ')))
-    console.log(chalk.yellow('\t') + '-'.repeat(55))
-    console.log('')
   }
 }

@@ -19,7 +19,7 @@
         "utf8": "^2.1.2",
         "symbol-sdk": "^0.18.0",
         "symbol-hd-wallets": "^0.10.0",
-        "symbol-token-standards": "~0.4.2",
+        "symbol-token-standards": "~0.5.0",
         "symbol-uri-scheme": "^0.4.4"
     },
     "devDependencies": {
