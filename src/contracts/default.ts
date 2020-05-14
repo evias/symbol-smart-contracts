@@ -45,15 +45,55 @@ export const subcommands = [
     brief: 'Disposable Smart Contract for Creation of Open Timestamps',
   },
   {
-    name: 'CreateSecurity',
-    brief: '(NIP13) Disposable Smart Contract for Creation of Security Tokens (NIP13 CreateToken)',
+    name: 'CreateAuthority',
+    brief: '(NIP13) Disposable Smart Contract for Creation of Security Tokens Authorities - NIP13 CreateAuthority',
   },
   {
-    name: 'IssueSecurity',
-    brief: '(NIP13) Disposable Smart Contract for Issuance of Security Tokens (NIP13 TransferOwnership with sender being the target account)',
+    name: 'ListSecurities',
+    brief: '(NIP13) Disposable Smart Contract for Listing of Security Tokens',
+  },
+  {
+    name: 'CreateSecurity',
+    brief: '(NIP13) Disposable Smart Contract for Creation of Security Tokens - NIP13 CreateToken',
+  },
+  {
+    name: 'CreatePartition',
+    brief: '(NIP13) Disposable Smart Contract for Issuance of Security Tokens - NIP13 CreatePartition',
   },
   {
     name: 'TransferSecurity',
-    brief: '(NIP13) Disposable Smart Contract for Transfer of Security Tokens between Partitions (NIP13 TransferOwnership with sender being a partition account)',
+    brief: '(NIP13) Disposable Smart Contract for Transfer of Security Tokens between Partitions - NIP13 TransferOwnership',
+  },
+  {
+    name: 'ForcedTransferSecurity',
+    brief: '(NIP13) Disposable Smart Contract for forced Transfer of Security Tokens between Partitions - NIP13 ForcedTransfer',
+  },
+  {
+    name: 'LockSecurityBalance',
+    brief: '(NIP13) Disposable Smart Contract for Locking (part of) balances of Security Tokens - NIP13 LockBalance',
+  },
+  {
+    name: 'UnlockSecurityBalance',
+    brief: '(NIP13) Disposable Smart Contract for Unlocking (part of) balances of Security Tokens - NIP13 UnlockBalance',
+  },
+  {
+    name: 'ModifySecurityMetadata',
+    brief: '(NIP13) Disposable Smart Contract for Modifying metadata of Security Tokens - NIP13 ModifyMetadata',
+  },
+  {
+    name: 'ModifySecurityRestriction',
+    brief: '(NIP13) Disposable Smart Contract for Modifying restrictions of Security Tokens - NIP13 ModifyRestriction',
+  },
+  {
+    name: 'ModifyPartitionRestriction',
+    brief: '(NIP13) Disposable Smart Contract for Modifying restrictions of Token Holder Partitions - NIP13 ModifyRestriction',
+  },
+  {
+    name: 'AttachSecurityDocument',
+    brief: '(NIP13) Disposable Smart Contract for attaching documents to Security Tokens - NIP13 AttachDocument',
+  },
+  {
+    name: 'AttachPartitionDocument',
+    brief: '(NIP13) Disposable Smart Contract for attaching documents to token holder partitions - NIP13 AttachDocument',
   },
 ];

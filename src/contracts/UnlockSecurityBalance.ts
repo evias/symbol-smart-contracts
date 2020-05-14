@@ -17,7 +17,7 @@
 import chalk from 'chalk';
 import { command, metadata, option } from 'clime'
 import * as readlineSync from 'readline-sync';
-import { NIP13, NetworkConfig, TransactionParameters } from 'symbol-token-standards'
+import { NIP13, NetworkConfig, TransactionParameters, CommandOption } from 'symbol-token-standards'
 import { Account, PublicAccount, Transaction, Mosaic, MosaicId, UInt64, Deadline, AccountInfo, Address } from 'symbol-sdk'
 import { MnemonicPassPhrase } from 'symbol-hd-wallets'
 import { TransactionURI } from 'symbol-uri-scheme'
@@ -26,25 +26,20 @@ import { OptionsResolver } from '../kernel/OptionsResolver'
 import { Contract, ContractConstants, ContractInputs } from '../kernel/Contract'
 import {description} from './default'
 
-export class TransferSecurityInputs extends ContractInputs {
+export class UnlockSecurityBalanceInputs extends ContractInputs {
   @option({
-    flag: 'l',
-    description: 'The partition name',
+    flag: 'r',
+    description: 'Holder that should be unlocked (PARTITION)',
+  })
+  holder: string;
+  @option({
+    flag: 'n',
+    description: 'Name of the partition to unlock',
   })
   name: string;
   @option({
-    flag: 'r',
-    description: 'Recipient of the security',
-  })
-  recipient: string;
-  @option({
-    flag: 'r',
-    description: 'Sender of the security',
-  })
-  sender: string;
-  @option({
     flag: 'n',
-    description: 'Total amount of shares to transfer',
+    description: 'Total amount of shares to unlock',
   })
   amount: number;
   @option({
@@ -54,13 +49,13 @@ export class TransferSecurityInputs extends ContractInputs {
   mnemonic: string;
   @option({
     flag: 'y',
-    description: 'Force transfer of security token',
+    description: 'Force lock of security token',
   })
   yes: boolean;
 }
 
 @command({
-  description: 'Disposable Smart Contract for the Transfer of Securities',
+  description: 'Disposable Smart Contract for Unlocking of Securities',
 })
 export default class extends Contract {
 
@@ -74,7 +69,7 @@ export default class extends Contract {
    * @return {string}
    */
   public getName(): string {
-    return 'TransferSecurity'
+    return 'UnlockSecurityBalance'
   }
 
   /**
@@ -87,7 +82,7 @@ export default class extends Contract {
   }
 
   /**
-   * Execution routine for the `TransferSecurity` smart contract.
+   * Execution routine for the `UnlockSecurityBalance` smart contract.
    *
    * @description This contract is defined in three (3) steps.
    * This contract sends an aggregate transaction containing 1
@@ -95,11 +90,11 @@ export default class extends Contract {
    * and 1 mosaic supply transactions and also 1 mosaic alias
    * transaction.
    *
-   * @param {TransferSecurityInputs} inputs
+   * @param {UnlockSecurityBalanceInputs} inputs
    * @return {Promise<any>}
    */
   @metadata
-  async execute(inputs: TransferSecurityInputs) 
+  async execute(inputs: UnlockSecurityBalanceInputs) 
   {
     console.log(description)
 
@@ -116,34 +111,18 @@ export default class extends Contract {
     // -------------------
     try {
       console.log('')
-      inputs['sender'] = OptionsResolver(inputs,
-        'sender',
+      inputs['holder'] = OptionsResolver(inputs,
+        'holder',
         () => { return ''; },
-        'Enter the sender address: ')
+        'Enter the token holder address (will be unlocked): ')
     } catch (err) { this.error('Invalid address.') }
 
     try {
       console.log('')
-      inputs['name_sender'] = OptionsResolver(inputs,
-        'name_sender',
+      inputs['name'] = OptionsResolver(inputs,
+        'name',
         () => { return ''; },
-        'Enter the sender partition label: ')
-    } catch (err) { this.error('Invalid partition label.') }
-
-    try {
-      console.log('')
-      inputs['recipient'] = OptionsResolver(inputs,
-        'recipient',
-        () => { return ''; },
-        'Enter the recipient address: ')
-    } catch (err) { this.error('Invalid address.') }
-
-    try {
-      console.log('')
-      inputs['name_recipient'] = OptionsResolver(inputs,
-        'name_recipient',
-        () => { return ''; },
-        'Enter the recipient partition label: ')
+        'Enter the partition label: ')
     } catch (err) { this.error('Invalid partition label.') }
 
     try {
@@ -151,13 +130,21 @@ export default class extends Contract {
       inputs['amount'] = parseInt(OptionsResolver(inputs,
         'amount',
         () => { return ''; },
-        'Enter a number of shares to be transferred: '))
+        'Enter a number of shares to be locked: '))
 
-      // a transfer should contain always a minimum of 1 share
+      // a lock should contain always a minimum of 1 share
       if (inputs['supply'] <= 0) {
         inputs['supply'] = 1
       }
     } catch (err) { this.error('Invalid number of shares.') }
+
+    try {
+      console.log('')
+      inputs['locker'] = OptionsResolver(inputs,
+        'locker',
+        () => { return ''; },
+        'Enter the token locker address: ')
+    } catch (err) { this.error('Invalid address.') }
 
     // --------------------------------
     // STEP 2: Prepare Contract Actions
@@ -186,26 +173,20 @@ export default class extends Contract {
 
     // derive TARGET account
     const target = token.getTarget()
-    const sender = Address.createFromRawAddress(inputs['sender'])
-
-    // fetch recipient information
-    let senderInfo: AccountInfo
-    senderInfo = await this.factoryHttp
+    let holder: AccountInfo
+    holder = await this.factoryHttp
       .createAccountRepository()
-      .getAccountInfo(sender)
+      .getAccountInfo(Address.createFromRawAddress(inputs['holder']))
       .toPromise()
 
-    let recipient: AccountInfo
-    recipient = await this.factoryHttp
+    let locker: AccountInfo
+    locker = await this.factoryHttp
       .createAccountRepository()
-      .getAccountInfo(Address.createFromRawAddress(inputs['recipient']))
+      .getAccountInfo(Address.createFromRawAddress(inputs['locker']))
       .toPromise()
 
     console.log(chalk.green('NIP13 Token Target: ' + target.address.plain()))
-
-    if (inputs['debug'] === true) {
-      console.log(chalk.red('\t\t    ' + target.privateKey))
-    }
+    console.log(chalk.red('\t\t    ' + target.privateKey))
 
     // --------------------------------
     // STEP 3: Execute Contract Actions
@@ -216,31 +197,28 @@ export default class extends Contract {
     )
 
     // derive SENDER partition account and operator
-    const senderPartition = sender.equals(target.address)
-      ? target
-      : token.getPartition(senderInfo.publicAccount, inputs['name_sender'])
-    const recipientPartition = token.getPartition(recipient.publicAccount, inputs['name_recipient'])
-    const bip39Path = token.getPathForPartition(recipient.publicAccount, inputs['name_recipient'])
+    const holderPartition = token.getPartition(holder.publicAccount, inputs['name'])
+    const bip39Path = token.getPathForPartition(holder.publicAccount, inputs['name'])
     const operator  = token.getOperator(1)
 
-    console.log(chalk.green('NIP13 Sender Token Partition:    ' + senderPartition.address.plain()))
-    console.log(chalk.green('NIP13 Recipient Token Partition: ' + recipientPartition.address.plain()))
+    console.log(chalk.green('NIP13 Token Holder Partition: ' + holderPartition.address.plain()))
     console.log(chalk.green('Recipient Token Partition Path:     ' + bip39Path))
-
-    if (inputs['debug'] === true) {
-      console.log(chalk.red('\t\t    ' + recipientPartition.privateKey))
-    }
+    console.log(chalk.red('\t\t    ' + holderPartition.privateKey))
+    console.log('')
+    console.log(chalk.green('NIP13 Token Locker Account: ' + locker.address.plain()))
 
     // transfer shares
-    const result = await token.transfer(
-      operator.publicAccount, // actor
-      senderPartition.publicAccount, // sender
-      recipientPartition.publicAccount, // recipient (PARTITION)
-      inputs['amount'],
+    const resultURI: TransactionURI = await token.execute(
+      operator.publicAccount,
+      token.identifier,
+      'UnlockBalance',
       params,
+      [
+        new CommandOption('partition', holderPartition.publicAccount),
+        new CommandOption('locker', locker.publicAccount),
+        new CommandOption('amount', inputs['amount']),
+      ]
     )
-
-    const resultURI: TransactionURI = result
 
     console.log('')
     console.log(chalk.yellow('Contract URI: ' + resultURI.build()))
@@ -249,7 +227,7 @@ export default class extends Contract {
     // whether to force execution or ask for next step
     if (!inputs['yes']) {
       const shouldContinue = readlineSync.keyInYN(
-        'Do you want to transfer the security token now? ')
+        'Do you want to lock the token holder partition now? ')
 
       if (shouldContinue === false) {
         return ;

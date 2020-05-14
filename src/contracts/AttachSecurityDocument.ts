@@ -17,7 +17,7 @@
 import chalk from 'chalk';
 import { command, metadata, option } from 'clime'
 import * as readlineSync from 'readline-sync';
-import { NIP13, NetworkConfig, TransactionParameters } from 'symbol-token-standards'
+import { NIP13, NetworkConfig, TransactionParameters, CommandOption } from 'symbol-token-standards'
 import { Account, PublicAccount, Transaction, Mosaic, MosaicId, UInt64, Deadline, AccountInfo, Address } from 'symbol-sdk'
 import { MnemonicPassPhrase } from 'symbol-hd-wallets'
 import { TransactionURI } from 'symbol-uri-scheme'
@@ -26,27 +26,7 @@ import { OptionsResolver } from '../kernel/OptionsResolver'
 import { Contract, ContractConstants, ContractInputs } from '../kernel/Contract'
 import {description} from './default'
 
-export class TransferSecurityInputs extends ContractInputs {
-  @option({
-    flag: 'l',
-    description: 'The partition name',
-  })
-  name: string;
-  @option({
-    flag: 'r',
-    description: 'Recipient of the security',
-  })
-  recipient: string;
-  @option({
-    flag: 'r',
-    description: 'Sender of the security',
-  })
-  sender: string;
-  @option({
-    flag: 'n',
-    description: 'Total amount of shares to transfer',
-  })
-  amount: number;
+export class AttachSecurityDocumentInputs extends ContractInputs {
   @option({
     flag: 'm',
     description: 'Use an existing BIP39 mnemonic pass phrase',
@@ -54,13 +34,13 @@ export class TransferSecurityInputs extends ContractInputs {
   mnemonic: string;
   @option({
     flag: 'y',
-    description: 'Force transfer of security token',
+    description: 'Force lock of security token',
   })
   yes: boolean;
 }
 
 @command({
-  description: 'Disposable Smart Contract for the Transfer of Securities',
+  description: 'Disposable Smart Contract for Unlocking of Securities',
 })
 export default class extends Contract {
 
@@ -74,7 +54,7 @@ export default class extends Contract {
    * @return {string}
    */
   public getName(): string {
-    return 'TransferSecurity'
+    return 'AttachSecurityDocument'
   }
 
   /**
@@ -87,7 +67,7 @@ export default class extends Contract {
   }
 
   /**
-   * Execution routine for the `TransferSecurity` smart contract.
+   * Execution routine for the `AttachSecurityDocument` smart contract.
    *
    * @description This contract is defined in three (3) steps.
    * This contract sends an aggregate transaction containing 1
@@ -95,11 +75,11 @@ export default class extends Contract {
    * and 1 mosaic supply transactions and also 1 mosaic alias
    * transaction.
    *
-   * @param {TransferSecurityInputs} inputs
+   * @param {AttachSecurityDocumentInputs} inputs
    * @return {Promise<any>}
    */
   @metadata
-  async execute(inputs: TransferSecurityInputs) 
+  async execute(inputs: AttachSecurityDocumentInputs) 
   {
     console.log(description)
 
@@ -114,50 +94,17 @@ export default class extends Contract {
     // -------------------
     // STEP 1: Read Inputs
     // -------------------
-    try {
-      console.log('')
-      inputs['sender'] = OptionsResolver(inputs,
-        'sender',
-        () => { return ''; },
-        'Enter the sender address: ')
-    } catch (err) { this.error('Invalid address.') }
+    console.log('')
+    inputs['filenode'] = OptionsResolver(inputs,
+      'filenode',
+      () => { return ''; },
+      'Enter a IPNS file name (e.g. QmSrPmbaUKA3ZodhzPWZnpFgcPMFWF4QsxXbkWfEptTBJd): ')
 
-    try {
-      console.log('')
-      inputs['name_sender'] = OptionsResolver(inputs,
-        'name_sender',
-        () => { return ''; },
-        'Enter the sender partition label: ')
-    } catch (err) { this.error('Invalid partition label.') }
-
-    try {
-      console.log('')
-      inputs['recipient'] = OptionsResolver(inputs,
-        'recipient',
-        () => { return ''; },
-        'Enter the recipient address: ')
-    } catch (err) { this.error('Invalid address.') }
-
-    try {
-      console.log('')
-      inputs['name_recipient'] = OptionsResolver(inputs,
-        'name_recipient',
-        () => { return ''; },
-        'Enter the recipient partition label: ')
-    } catch (err) { this.error('Invalid partition label.') }
-
-    try {
-      console.log('')
-      inputs['amount'] = parseInt(OptionsResolver(inputs,
-        'amount',
-        () => { return ''; },
-        'Enter a number of shares to be transferred: '))
-
-      // a transfer should contain always a minimum of 1 share
-      if (inputs['supply'] <= 0) {
-        inputs['supply'] = 1
-      }
-    } catch (err) { this.error('Invalid number of shares.') }
+    console.log('')
+    inputs['filename'] = parseInt(OptionsResolver(inputs,
+      'filename',
+      () => { return ''; },
+      'Enter a file name (e.g. Copy_of_ID.png): '))
 
     // --------------------------------
     // STEP 2: Prepare Contract Actions
@@ -186,26 +133,9 @@ export default class extends Contract {
 
     // derive TARGET account
     const target = token.getTarget()
-    const sender = Address.createFromRawAddress(inputs['sender'])
-
-    // fetch recipient information
-    let senderInfo: AccountInfo
-    senderInfo = await this.factoryHttp
-      .createAccountRepository()
-      .getAccountInfo(sender)
-      .toPromise()
-
-    let recipient: AccountInfo
-    recipient = await this.factoryHttp
-      .createAccountRepository()
-      .getAccountInfo(Address.createFromRawAddress(inputs['recipient']))
-      .toPromise()
 
     console.log(chalk.green('NIP13 Token Target: ' + target.address.plain()))
-
-    if (inputs['debug'] === true) {
-      console.log(chalk.red('\t\t    ' + target.privateKey))
-    }
+    console.log(chalk.red('\t\t    ' + target.privateKey))
 
     // --------------------------------
     // STEP 3: Execute Contract Actions
@@ -215,32 +145,18 @@ export default class extends Contract {
       750000, // maxFee
     )
 
-    // derive SENDER partition account and operator
-    const senderPartition = sender.equals(target.address)
-      ? target
-      : token.getPartition(senderInfo.publicAccount, inputs['name_sender'])
-    const recipientPartition = token.getPartition(recipient.publicAccount, inputs['name_recipient'])
-    const bip39Path = token.getPathForPartition(recipient.publicAccount, inputs['name_recipient'])
-    const operator  = token.getOperator(1)
-
-    console.log(chalk.green('NIP13 Sender Token Partition:    ' + senderPartition.address.plain()))
-    console.log(chalk.green('NIP13 Recipient Token Partition: ' + recipientPartition.address.plain()))
-    console.log(chalk.green('Recipient Token Partition Path:     ' + bip39Path))
-
-    if (inputs['debug'] === true) {
-      console.log(chalk.red('\t\t    ' + recipientPartition.privateKey))
-    }
-
     // transfer shares
-    const result = await token.transfer(
-      operator.publicAccount, // actor
-      senderPartition.publicAccount, // sender
-      recipientPartition.publicAccount, // recipient (PARTITION)
-      inputs['amount'],
+    const resultURI: TransactionURI = await token.execute(
+      token.getOperator(1).publicAccount,
+      token.identifier,
+      'AttachDocument',
       params,
+      [
+        new CommandOption('recipient', target.publicAccount),
+        new CommandOption('filenode', inputs['filenode']),
+        new CommandOption('filename', inputs['filename']),
+      ]
     )
-
-    const resultURI: TransactionURI = result
 
     console.log('')
     console.log(chalk.yellow('Contract URI: ' + resultURI.build()))
@@ -249,7 +165,7 @@ export default class extends Contract {
     // whether to force execution or ask for next step
     if (!inputs['yes']) {
       const shouldContinue = readlineSync.keyInYN(
-        'Do you want to transfer the security token now? ')
+        'Do you want to modify the token level restriction now? ')
 
       if (shouldContinue === false) {
         return ;
@@ -257,7 +173,7 @@ export default class extends Contract {
     }
 
     // wrap all transactions in an aggregate, sign and broadcast
-    return await this.executeContract(operator, [resultURI.toTransaction()])
+    return await this.executeContract(token.getOperator(1), [resultURI.toTransaction()])
   }
 
   /**
