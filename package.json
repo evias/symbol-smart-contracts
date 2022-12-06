@@ -1,7 +1,7 @@
 {
     "name": "symbol-smart-contracts",
     "preferGlobal": true,
-    "version": "0.3.0",
+    "version": "1.0.0",
     "author": "Grégory Saive <greg@evias.be>",
     "description": "Disposable Smart Contracts tooling integrated with Symbol Distributed Ledger Technology",
     "license": "Apache-2.0",
@@ -17,10 +17,12 @@
         "rxjs": "^6.5.3",
         "rimraf": "^3.0.0",
         "utf8": "^2.1.2",
-        "symbol-sdk": "^0.18.0",
-        "symbol-hd-wallets": "^0.10.0",
-        "symbol-token-standards": "~0.5.0",
-        "symbol-uri-scheme": "^0.4.4"
+        "symbol-sdk": "^1.0.0",
+        "symbol-hd-wallets": "^0.14.0",
+        "symbol-token-standards": "~0.5.4",
+        "symbol-uri-scheme": "^0.6.0",
+        "governable": "^1.0.1",
+        "swapable": "^1.0.2"
     },
     "devDependencies": {
         "@types/lodash": "^4.14.144",

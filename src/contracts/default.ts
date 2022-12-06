@@ -96,4 +96,8 @@ export const subcommands = [
     name: 'AttachPartitionDocument',
     brief: '(NIP13) Disposable Smart Contract for attaching documents to token holder partitions - NIP13 AttachDocument',
   },
+  {
+    name: 'GovCreateAgreement',
+    brief: '(Governable) Disposable Smart Contract for creating DAO launch agreements - Governable::CreateAgreement',
+  },
 ];

@@ -94,6 +94,7 @@ export default class extends Contract {
       this.endpointUrl,
       this.networkType,
       this.generationHash,
+      this.epochAdjustment,
       new MosaicId(ContractConstants.LOCK_MOSAIC)
     )
 

@@ -179,6 +179,7 @@ export default class extends Contract {
         this.endpointUrl,
         this.networkType,
         this.generationHash,
+        this.epochAdjustment,
         new MosaicId(ContractConstants.LOCK_MOSAIC)
       ),
       bip39,
@@ -208,7 +209,8 @@ export default class extends Contract {
     // STEP 3: Execute Contract Actions
     // --------------------------------
     const params = new TransactionParameters(
-      Deadline.create(),
+      this.epochAdjustment,
+      Deadline.create(this.epochAdjustment),
       750000, // maxFee
     )
 
@@ -229,7 +231,7 @@ export default class extends Contract {
     }
 
     // transfer shares
-    const resultURI: TransactionURI = await token.execute(
+    const resultURI: TransactionURI<Transaction> = await token.execute(
       operator.publicAccount,
       token.identifier,
       'ForcedTransfer',

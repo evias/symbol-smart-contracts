@@ -210,6 +210,7 @@ export default class extends Contract {
       this.endpointUrl,
       this.networkType,
       this.generationHash,
+      this.epochAdjustment,
       new MosaicId(ContractConstants.LOCK_MOSAIC)
     )
 
@@ -314,7 +315,8 @@ export default class extends Contract {
     // STEP 3: Execute Contract Actions
     // --------------------------------
     const params = new TransactionParameters(
-      Deadline.create(),
+      this.epochAdjustment,
+      Deadline.create(this.epochAdjustment),
       750000, // maxFee
     )
 
@@ -328,7 +330,7 @@ export default class extends Contract {
       params,
     )
 
-    const resultURI: TransactionURI = token.result
+    const resultURI: TransactionURI<Transaction> = token.result
 
     console.log('')
     console.log(chalk.yellow('Contract URI: ' + resultURI.build()))
