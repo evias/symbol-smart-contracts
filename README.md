@@ -13,13 +13,13 @@ Package licensed under [Apache v2.0](LICENSE) License.
 1. Clone the Project
 
 ```
-git clone https://github.com/evias/nem2-smart-contracts.git`
+git clone https://github.com/evias/symbol-smart-contracts.git`
 ```
 
 2. Install the required dependencies.
 
 ```
-cd nem2-smart-contracts && npm install
+cd symbol-smart-contracts && npm install
 ```
 
 3. Build
@@ -35,34 +35,54 @@ Please, make sure to follow the Instructions above before executing example comm
 1. Execute the `AssetCreation` disposable smart contract
 
 ```bash
-$ ./nem2-smart-contracts AssetCreation
+$ ./symbol-smart-contracts AssetCreation
 ```
 
 2. Execute the `AssetRequest` disposable smart contract
 
 ```bash
-$ ./nem2-smart-contracts AssetRequest --debug true
+$ ./symbol-smart-contracts AssetRequest --debug true
 ```
 
 3. Execute the `PartialCosignature` disposable smart contract
 
 ```bash
-$ ./nem2-smart-contracts PartialCosignature --debug true
+$ ./symbol-smart-contracts PartialCosignature --debug true
 ```
+
+## Sponsor us
+
+| Platform | Sponsor Link |
+| --- | --- |
+| Paypal | [https://paypal.me/usingblockchainltd](https://paypal.me/usingblockchainltd) |
+| Patreon | [https://patreon.com/usingblockchainltd](https://patreon.com/usingblockchainltd) |
+| Github | [https://github.com/sponsors/UsingBlockchain](https://github.com/sponsors/UsingBlockchain) |
 
 ## Donations / Pot de vin
 
-Donations can be made with cryptocurrencies and will be used for running the project!
+Donations can also be made with cryptocurrencies and will be used for running the project!
 
-    NEM:       NB72EM6TTSX72O47T3GQFL345AB5WYKIDODKPPYW
-    Bitcoin:   3EVqgUqYFRYbf9RjhyjBgKXcEwAQxhaf6o
+    NEM      (XEM):     NB72EM6TTSX72O47T3GQFL345AB5WYKIDODKPPYW
+    Symbol   (XYM):     NDQALDK4XWLOUYKPE7RDEWUI25YNRQ7VCGXMPCI
+    Ethereum (ETH):     0x7a846fd5Daa4b904caF7C59f866bb906153305D2
+    Bitcoin  (BTC):     3EVqgUqYFRYbf9RjhyjBgKXcEwAQxhaf6o
 
-| Username | Role |
+## Credits
+
+| Name | Contributions |
 | --- | --- |
-| [eVias](https://github.com/evias) | Project Lead |
+| Using Blockchain Ltd (@UsingBlockchain) <info@using-blockchain.org> | Product Owner |
+| Grégory Saive (@eVias) | Lead Engineering |
+
+## Disclaimer
+
+  *The author of this package cannot be held responsible for any loss of money or any malintentioned usage forms of this package. Please use this package with caution.*
+
+  *Our software contains links to the websites of third parties (“external links”). As the content of these websites is not under our control, we cannot assume any liability for such external content. In all cases, the provider of information of the linked websites is liable for the content and accuracy of the information provided. At the point in time when the links were placed, no infringements of the law were recognisable to us..*
 
 ## License
 
-This software is released under the [Apache v2.0](LICENSE) License.
+Copyright 2019 Grégory Saive <greg@evias.be> for NEM (https://nem.io), All rights reserved.
+Copyright 2020-2021 Using Blockchain Ltd, Reg No.: 12658136, United Kingdom, All rights reserved.
 
-© 2019 Grégory Saive <greg@evias.be> for NEM (https://nem.io), All rights reserved.
+Licensed under the [Apache 2.0](LICENSE).

@@ -1,6 +1,6 @@
 /**
- * 
- * Copyright 2019-present Grégory Saive for NEM (https://nem.io)
+ * This file is part of symbol-smart-contracts shared under Apache-2.0
+ * Copyright 2020-2021 Using Blockchain Ltd, Reg No.: 12658136, United Kingdom, All rights reserved.
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,26 +21,47 @@ import { NIP13, NetworkConfig, TransactionParameters, CommandOption } from 'symb
 import { Account, PublicAccount, Transaction, Mosaic, MosaicId, UInt64, Deadline, AccountInfo, Address } from 'symbol-sdk'
 import { MnemonicPassPhrase } from 'symbol-hd-wallets'
 import { TransactionURI } from 'symbol-uri-scheme'
+import { Governable, Symbol } from 'governable'
 
 import { OptionsResolver } from '../kernel/OptionsResolver'
 import { Contract, ContractConstants, ContractInputs } from '../kernel/Contract'
 import {description} from './default'
 
-export class AttachSecurityDocumentInputs extends ContractInputs {
+export class GovCreateAgreementInputs extends ContractInputs {
+  @option({
+    flag: 'n',
+    description: 'The DAO name',
+  })
+  name: string;
   @option({
     flag: 'm',
     description: 'Use an existing BIP39 mnemonic pass phrase',
   })
   mnemonic: string;
   @option({
+    flag: 'p',
+    description: 'Password-protected (or not) your DAO target account',
+  })
+  password: string;
+  @option({
+    flag: 'a',
+    description: 'Derivation path of the agreement account',
+  })
+  agreementPath: string;
+  @option({
+    flag: 'o',
+    description: 'Public keys of the operators of the DAO',
+  })
+  operators: string[];
+  @option({
     flag: 'y',
-    description: 'Force lock of security token',
+    description: 'Force the creation of an agreement',
   })
   yes: boolean;
 }
 
 @command({
-  description: 'Disposable Smart Contract for Unlocking of Securities',
+  description: 'Disposable Smart Contract for creating DAO launch agreements',
 })
 export default class extends Contract {
 
@@ -49,37 +70,31 @@ export default class extends Contract {
   }
 
   /**
-   * Get the name of the contract
-   *
-   * @return {string}
-   */
+  * Get the name of the contract
+  *
+  * @return {string}
+  */
   public getName(): string {
-    return 'AttachSecurityDocument'
+    return 'GovCreateAgreement'
   }
 
   /**
-   * Returns whether the contract requires authentication
-   *
-   * @return {boolean}
-   */
+  * Returns whether the contract requires authentication
+  *
+  * @return {boolean}
+  */
   public requiresAuth(): boolean {
     return false
   }
 
   /**
-   * Execution routine for the `AttachSecurityDocument` smart contract.
-   *
-   * @description This contract is defined in three (3) steps.
-   * This contract sends an aggregate transaction containing 1
-   * or more namespace registration transactions, 1 mosaic def
-   * and 1 mosaic supply transactions and also 1 mosaic alias
-   * transaction.
-   *
-   * @param {AttachSecurityDocumentInputs} inputs
-   * @return {Promise<any>}
-   */
+  * Execution routine for the `GovCreateAgreement` smart contract.
+  *
+  * @param {GovCreateAgreementInputs} inputs
+  * @return {Promise<any>}
+  */
   @metadata
-  async execute(inputs: AttachSecurityDocumentInputs) 
+  async execute(inputs: GovCreateAgreementInputs) 
   {
     console.log(description)
 
@@ -94,17 +109,43 @@ export default class extends Contract {
     // -------------------
     // STEP 1: Read Inputs
     // -------------------
-    console.log('')
-    inputs['filenode'] = OptionsResolver(inputs,
-      'filenode',
-      () => { return ''; },
-      'Enter a IPNS file name (e.g. QmSrPmbaUKA3ZodhzPWZnpFgcPMFWF4QsxXbkWfEptTBJd): ')
+    try {
+      console.log('')
+      inputs['name'] = OptionsResolver(inputs,
+        'name',
+        () => { return ''; },
+        'Enter the DAO name: ')
+    } catch (err) { this.error('Invalid name.') }
 
+    try {
     console.log('')
-    inputs['filename'] = parseInt(OptionsResolver(inputs,
-      'filename',
+    inputs['password'] = OptionsResolver(inputs,
+      'password',
       () => { return ''; },
-      'Enter a file name (e.g. Copy_of_ID.png): '))
+      'Enter a new password: ')
+    } catch (err) { this.error('Invalid password.') }
+
+    let operators: PublicAccount[] = [],
+        yn: boolean = false
+    do {
+      const op = PublicAccount.createFromPublicKey(OptionsResolver(inputs,
+        'operators',
+        () => { return ''; },
+        'Enter an operator public key: '), this.networkType)
+      operators.push(op)
+
+      yn = readlineSync.keyInYN(
+        'Do you want to add another operator? ')
+    }
+    while(yn === true)
+
+    try {
+      console.log('')
+      inputs['agreementPath'] = OptionsResolver(inputs,
+        'agreementPath',
+        () => { return ''; },
+        'Enter the derivation path for the agreement account: ')
+    } catch (err) { this.error('Invalid agreementPath.') }
 
     // --------------------------------
     // STEP 2: Prepare Contract Actions
@@ -121,21 +162,36 @@ export default class extends Contract {
     }
     else bip39 = new MnemonicPassPhrase(inputs['mnemonic'])
 
-    const token = new NIP13.Token(
-      new NetworkConfig(
-        this.endpointUrl,
-        this.networkType,
-        this.generationHash,
-        this.epochAdjustment,
-        new MosaicId(ContractConstants.LOCK_MOSAIC)
-      ),
+    // - Prepares the node connection
+    const reader = new Symbol.Reader(
+      'http://dual-001.symbol.ninja:3000',
+      this.networkType,
+      this.generationHash,
+      this.epochAdjustment,
+      new MosaicId(ContractConstants.LOCK_MOSAIC),
+      '306FA94E0AB682964416C8172F858939533E5998906B8AFAD4A4585C7CDD722C', // nodepubkey saves 1 request
+    )
+    
+    // - Initializes a key provider and distributed organization instance.
+    const signer = new Symbol.Signer() 
+    const dao = new Governable.DistributedOrganization(
+      inputs['name'],
+      reader,
+      signer,
       bip39,
+      inputs['password'],
     )
 
-    // derive TARGET account
-    const target = token.getTarget()
+    // derive TARGET account ("target" property is "public account")
+    // this step is only for illustration and display of private key
+    const target = Symbol.Accountable.derive(
+      bip39.toSeed(inputs['password']),
+      Governable.TargetDerivationPath,
+      this.networkType,
+      signer,
+    )
 
-    console.log(chalk.green('NIP13 Token Target: ' + target.address.plain()))
+    console.log(chalk.green('Governable DAO Target: ' + target.address.plain()))
     console.log(chalk.red('\t\t    ' + target.privateKey))
 
     // --------------------------------
@@ -147,16 +203,16 @@ export default class extends Contract {
       750000, // maxFee
     )
 
-    // transfer shares
-    const resultURI: TransactionURI<Transaction> = await token.execute(
-      token.getOperator(1).publicAccount,
-      token.identifier,
-      'AttachDocument',
+    const resultURI: TransactionURI<Transaction> = await dao.execute(
+      operators[0],
+      dao.identifier,
+      'CreateAgreement',
       params,
       [
-        new CommandOption('recipient', target.publicAccount),
-        new CommandOption('filenode', inputs['filenode']),
-        new CommandOption('filename', inputs['filename']),
+        new CommandOption('password', inputs['password']),
+        new CommandOption('mnemonic', bip39),
+        new CommandOption('operators', operators),
+        new CommandOption('agreementPath', inputs['agreementPath']),
       ]
     )
 
@@ -167,7 +223,7 @@ export default class extends Contract {
     // whether to force execution or ask for next step
     if (!inputs['yes']) {
       const shouldContinue = readlineSync.keyInYN(
-        'Do you want to modify the token level restriction now? ')
+        'Do you want to create the DAO launch agreement now? ')
 
       if (shouldContinue === false) {
         return ;
@@ -175,16 +231,16 @@ export default class extends Contract {
     }
 
     // wrap all transactions in an aggregate, sign and broadcast
-    return await this.executeContract(token.getOperator(1), [resultURI.toTransaction()])
+    return await this.executeContract(target, [resultURI.toTransaction()])
   }
 
   /**
-   * Execute a smart contract's transactions
-   *
-   * @param {Account}       account 
-   * @param {Transaction[]} transactions
-   * @return {Promise<any>}
-   */
+  * Execute a smart contract's transactions
+  *
+  * @param {Account}       account 
+  * @param {Transaction[]} transactions
+  * @return {Promise<any>}
+  */
   protected async executeContract(
     account: Account,
     transactions: Transaction[]

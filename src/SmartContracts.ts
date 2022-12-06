@@ -1,6 +1,6 @@
 /**
- * 
- * Copyright 2019-present Grégory Saive for NEM (https://nem.io)
+ * Copyright 2019-2021 Grégory Saive for NEM (https://nem.io)
+ * Copyright 2021-present Using Blockchain Ltd, All rights reserved.
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

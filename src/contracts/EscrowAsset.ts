@@ -218,7 +218,7 @@ export default class extends Contract {
   ): Promise<any> {
     // wrap contract transactions
     const aggregateTx = AggregateTransaction.createBonded(
-      Deadline.create(),
+      Deadline.create(this.epochAdjustment),
       transactions,
       this.networkType,
       [],

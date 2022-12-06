@@ -24,6 +24,7 @@ import {
     Transaction,
     UInt64,
     RepositoryFactoryHttp,
+    RepositoryFactoryConfig,
 } from 'symbol-sdk';
 import { Observable, from as observableFrom } from 'rxjs';
 import * as readlineSync from 'readline-sync';
@@ -51,14 +52,21 @@ export abstract class Contract extends Command {
    * @internal
    * @var {string}
    */
-  public generationHash: string = 'ACECD90E7B248E012803228ADB4424F0D966D24149B72E58987D2BF2F2AF03C4'
+  public generationHash: string = '57F7DA205008026C776CB6AED843393F04CD458E0AA2D9F1D5F31A402072B2D6'
+
+  /**
+   * The network epoch adjustment (nemesis UTC timestamp)
+   * @internal
+   * @var {string}
+   */
+  public epochAdjustment: number = 1615853185
 
   /**
    * The network type
    * @internal
    * @var {NetworkType}
    */
-  public networkType: NetworkType = NetworkType.TEST_NET
+  public networkType: NetworkType = NetworkType.MAIN_NET
 
   /**
    * The repository factory
@@ -114,7 +122,7 @@ export abstract class Contract extends Command {
    * @param {Transaction[]} transactions
    * @return {Promise<any>}
    */
-  protected async abstract executeContract(
+  protected abstract executeContract(
     account: Account,
     transactions: Transaction[]
   ): Promise<any>
@@ -237,22 +245,20 @@ export abstract class Contract extends Command {
    * @internal
    * @return {Promise<BlockInfo>}
    */
-  private async connect(inputs: ContractInputs): Promise<BlockInfo> {
-    const blockHttp = new BlockHttp(this.endpointUrl)
-
-    // read first block of the network to identify
-    // generationHash and networkType
-    const firstBlock = await blockHttp.getBlockByHeight(UInt64.fromUint(1)).toPromise()
+  private async connect(inputs: ContractInputs): Promise<RepositoryFactoryHttp> {
     console.log(chalk.green('Using node: ', this.endpointUrl))
     console.log(chalk.green('Connection established successfully'))
 
-    this.networkType = firstBlock.networkType
-    this.generationHash = firstBlock.generationHash
-    this.factoryHttp = new RepositoryFactoryHttp(
-      this.endpointUrl,
-      this.networkType,
-      this.generationHash,
-    )
+    this.factoryHttp = await new RepositoryFactoryHttp(this.endpointUrl, {
+      networkType: this.networkType,
+      generationHash: this.generationHash,
+      epochAdjustment: this.epochAdjustment,
+    } as RepositoryFactoryConfig)
+
+    // reads network information from repository
+    this.networkType = await this.factoryHttp.getNetworkType().toPromise()
+    this.generationHash = await this.factoryHttp.getGenerationHash().toPromise()
+    this.epochAdjustment = await this.factoryHttp.getEpochAdjustment().toPromise()
 
     // also create transaction factory for said network
     this.factory = TransactionFactory.create(this.endpointUrl, this.networkType)
@@ -262,7 +268,7 @@ export abstract class Contract extends Command {
       this.endpointUrl,
       inputs['debug'] === true
     )
-    return firstBlock
+    return this.factoryHttp
   }
 
   /**
@@ -285,10 +291,8 @@ export abstract class Contract extends Command {
     const seed = mnemonic.toSeed().toString('hex')
     const xkey = ExtendedKey.createFromSeed(seed, Network.CATAPULT)
     const wallet = new Wallet(xkey)
-    return wallet.getChildAccount(
-      path,
-      this.networkType
-    );
+    const priv = wallet.getChildAccountPrivateKey(path)
+    return Account.createFromPrivateKey(priv, this.networkType)
   }
 
   /**
@@ -344,10 +348,10 @@ export class ContractConstants {
    * Block target in seconds
    * @var {number}
    */
-  public static BLOCK_TARGET_SECONDS: number = 15
+  public static BLOCK_TARGET_SECONDS: number = 30
   /**
    * Approximate number of blocks produced in one year
-   * Defaults to one year with 15 seconds block target: `2102400`
+   * Defaults to one year with 30 seconds block target: `2102400`
    * @var {number}
    */
   public static BLOCKS_IN_ONE_YEAR: number = (365 * 24 * 60 * 60) / ContractConstants.BLOCK_TARGET_SECONDS
@@ -374,19 +378,19 @@ export class ContractConstants {
    * Default API node URL
    * @var {string}
    */
-  public static DEFAULT_NODE_URL: string = 'http://api-01.us-west-1.0941-v1.symboldev.network:3000'
+  public static DEFAULT_NODE_URL: string = 'http://dual-001.symbol.ninja:3000'
 
   /**
    * Default explorer URL
    * @var {string}
    */
-  public static DEFAULT_EXPLORER_URL: string = 'http://explorer-941.symboldev.network'
+  public static DEFAULT_EXPLORER_URL: string = 'https://explorer.symbolblockchain.io'
 
   /**
    * Default locked mosaic (hash lock)
    * @var {string}
    */
-  public static LOCK_MOSAIC: string = '519FC24B9223E0B4' // symbol.xym
+  public static LOCK_MOSAIC: string = '6BED913FA20223F8' // symbol.xym mainnet
 
   /**
    * Default locked mosaic amount (hash lock)

@@ -23,7 +23,9 @@ import {
     Transaction,
     AggregateTransaction,
     AccountHttp,
+    TransactionHttp,
     CosignatureSignedTransaction,
+    TransactionGroup,
 } from 'symbol-sdk';
 
 import {OptionsResolver} from '../kernel/OptionsResolver';
@@ -103,7 +105,7 @@ export default class extends Contract {
     // STEP 2: Prepare Contract Actions
     // --------------------------------
 
-    const accountHttp = new AccountHttp(this.endpointUrl)
+    const transactionHttp = new TransactionHttp(this.endpointUrl)
     const cosignatory = argv['account']
 
     // --------------------------------
@@ -111,16 +113,19 @@ export default class extends Contract {
     // --------------------------------
 
     // read aggregate-bonded transactions
-    let unsignedTxes = await accountHttp.getAccountPartialTransactions(cosignatory.publicAccount.address).toPromise();
+    let unsignedTxes = await transactionHttp.search({
+      address: cosignatory.publicAccount.address,
+      group: TransactionGroup.Partial
+    }).toPromise();
 
-    if (! unsignedTxes.length) {
+    if (! unsignedTxes.data.length) {
       console.log('')
       console.log(chalk.yellow("No transactions found to co-sign."));
       console.log('')
       return ; // contract not executed
     }
 
-    return await this.executeContract(cosignatory, unsignedTxes)
+    return await this.executeContract(cosignatory, unsignedTxes.data)
   }
 
   /**

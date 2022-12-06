@@ -68,7 +68,12 @@ export class TransactionFactory {
      * The network type
      * @var {NetworkType}
      */
-    public readonly networkType: NetworkType = NetworkType.TEST_NET) {}
+    public readonly networkType: NetworkType = NetworkType.TEST_NET,
+    /**
+     * The epoch adjustment
+     * @var {number}
+     */
+    public readonly epochAdjustment: number = 1615853185) {}
 
   /**
    * Create a transaction factory
@@ -152,7 +157,7 @@ export class TransactionFactory {
     if (isSub === true) {
       // sub namespace level[i]
       return NamespaceRegistrationTransaction.createSubNamespace(
-        Deadline.create(),
+        Deadline.create(this.epochAdjustment),
         current,
         parent,
         this.networkType,
@@ -162,7 +167,7 @@ export class TransactionFactory {
 
     // root namespace
     return NamespaceRegistrationTransaction.createRootNamespace(
-      Deadline.create(),
+      Deadline.create(this.epochAdjustment),
       namespaceName,
       UInt64.fromUint(duration),
       this.networkType,
@@ -190,10 +195,10 @@ export class TransactionFactory {
   {
     // create nonce and mosaicId
     const nonce = MosaicNonce.createRandom();
-    const mosId = MosaicId.createFromNonce(nonce, publicAccount);
+    const mosId = MosaicId.createFromNonce(nonce, publicAccount.address);
 
     return MosaicDefinitionTransaction.create(
-      Deadline.create(),
+      Deadline.create(this.epochAdjustment),
       nonce,
       mosId,
       MosaicFlags.create(supplyMutable, transferable, restrictable),
@@ -217,7 +222,7 @@ export class TransactionFactory {
   ): MosaicSupplyChangeTransaction
   {
     return MosaicSupplyChangeTransaction.create(
-      Deadline.create(),
+      Deadline.create(this.epochAdjustment),
       mosaicId,
       MosaicSupplyChangeAction.Increase,
       supply,
@@ -240,7 +245,7 @@ export class TransactionFactory {
   ): MosaicAliasTransaction
   {
     return MosaicAliasTransaction.create(
-      Deadline.create(),
+      Deadline.create(this.epochAdjustment),
       AliasAction.Link,
       new NamespaceId(namespaceName),
       mosaicId,
@@ -265,7 +270,7 @@ export class TransactionFactory {
   ): TransferTransaction
   {
     return TransferTransaction.create(
-      Deadline.create(),
+      Deadline.create(this.epochAdjustment),
       recipient,
       [new Mosaic(mosaicId, UInt64.fromUint(amount))],
       PlainMessage.create(message),
@@ -290,7 +295,7 @@ export class TransactionFactory {
   {
     // create lock funds of 10 "cat.currency" for the aggregate transaction
     return HashLockTransaction.create(
-      Deadline.create(),
+      Deadline.create(this.epochAdjustment),
       mosaic,
       UInt64.fromUint(duration),
       signedAggregate,

@@ -28,6 +28,7 @@ import {
     NetworkType,
     TransactionStatusError,
     CosignatureSignedTransaction,
+    NamespaceHttp,
 } from 'symbol-sdk';
 import { Contract } from './Contract';
 
@@ -73,7 +74,8 @@ export class TransactionBroadcaster {
   {
     // open confirmation listener
     const transactionHttp = new TransactionHttp(this.endpointUrl)
-    const confirmedListener = new Listener(this.endpointUrl)
+    const namespaceHttp = new NamespaceHttp(this.endpointUrl)
+    const confirmedListener = new Listener(this.endpointUrl, namespaceHttp)
     await confirmedListener.open()
 
     if (this.enableDebug === true) {
@@ -118,7 +120,8 @@ export class TransactionBroadcaster {
   {
     // open confirmation listener
     const transactionHttp = new TransactionHttp(this.endpointUrl)
-    const confirmedListener = new Listener(this.endpointUrl)
+    const namespaceHttp = new NamespaceHttp(this.endpointUrl)
+    const confirmedListener = new Listener(this.endpointUrl, namespaceHttp)
     await confirmedListener.open()
 
     if (this.enableDebug === true) {
@@ -183,7 +186,8 @@ export class TransactionBroadcaster {
   {
     // open confirmation listener
     const transactionHttp = new TransactionHttp(this.endpointUrl)
-    const confirmedListener = new Listener(this.endpointUrl)
+    const namespaceHttp = new NamespaceHttp(this.endpointUrl)
+    const confirmedListener = new Listener(this.endpointUrl, namespaceHttp)
     await confirmedListener.open()
 
     if (this.enableDebug === true) {
